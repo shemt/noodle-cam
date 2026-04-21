@@ -1,7 +1,10 @@
 import time
 import logging
 import signal
+import threading
 import sys
+
+from web.config_server import create_app
 from pathlib import Path
 
 from config.settings import Config
@@ -63,6 +66,7 @@ class NoodleCamApp:
         )
         self.sm = StateMachine()
         self._setup_state_handlers()
+        self._web_thread = None
 
     def _setup_state_handlers(self):
         self.sm.on("customer_approach", self._on_customer_approach)
@@ -94,6 +98,17 @@ class NoodleCamApp:
     def run(self):
         self.running = True
         self.backend.start()
+        web_cfg = self.config.get("web", {})
+        web_host = web_cfg.get("host", "0.0.0.0")
+        web_port = web_cfg.get("port", 8080)
+        app = create_app("config.json")
+        self._web_thread = threading.Thread(
+            target=app.run,
+            kwargs={"host": web_host, "port": web_port, "threaded": True, "debug": False},
+            daemon=True
+        )
+        self._web_thread.start()
+        logger.info(f"配置服务已启动于 http://{web_host}:{web_port}")
         if self.config.get("video.rtsp_enabled", True):
             self.streamer.start()
 
