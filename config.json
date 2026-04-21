@@ -1,0 +1,47 @@
+{
+  "camera": {
+    "index": 0,
+    "width": 1280,
+    "height": 720
+  },
+  "vision": {
+    "model_path": "models/yolov5s.rknn",
+    "confidence_threshold": 0.5,
+    "customer_roi": {
+      "x1": 0,
+      "y1": 0,
+      "x2": 640,
+      "y2": 480
+    },
+    "bowl_rois": [],
+    "vote_frames": 5,
+    "vote_threshold": 4,
+    "debounce_seconds": 2.0
+  },
+  "audio": {
+    "volume": 80,
+    "pre_recorded": true,
+    "audio_dir": "audio_clips"
+  },
+  "backend": {
+    "url": "http://localhost:5000",
+    "heartbeat_interval": 30
+  },
+  "video": {
+    "rtsp_enabled": true,
+    "rtsp_fps": 1,
+    "record_enabled": true,
+    "record_dir": "recordings",
+    "max_storage_gb": 2
+  },
+  "llm": {
+    "enabled": false,
+    "api_key": "",
+    "fallback_threshold": 0.3,
+    "model": "qwen-vl-plus"
+  },
+  "web": {
+    "host": "0.0.0.0",
+    "port": 8080
+  }
+}
