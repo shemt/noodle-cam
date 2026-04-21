@@ -19,6 +19,11 @@ class TTSPlayer:
     def play(self, text: str, audio_file: Optional[str] = None):
         with self._lock:
             if audio_file and os.path.exists(audio_file):
+                real = os.path.realpath(audio_file)
+                base = os.path.realpath(self.audio_dir)
+                if not real.startswith(base + os.sep) and real != base:
+                    logger.warning(f"拒绝播放 audio_dir 外的文件: {audio_file}")
+                    return
                 self._play_file(audio_file)
                 return
             if self.use_pre_recorded:

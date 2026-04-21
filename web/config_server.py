@@ -80,6 +80,27 @@ HTML_PAGE = """
 """
 
 
+def _validate_customer_roi(val):
+    if not isinstance(val, dict):
+        raise ValueError("customer_roi 必须是字典")
+    for key in ("x1", "y1", "x2", "y2"):
+        if key not in val:
+            raise ValueError(f"customer_roi 缺少字段 {key}")
+    return val
+
+
+def _validate_bowl_rois(val):
+    if not isinstance(val, list):
+        raise ValueError("bowl_rois 必须是列表")
+    for item in val:
+        if not isinstance(item, dict):
+            raise ValueError("bowl_rois 每项必须是字典")
+        for key in ("id", "x1", "y1", "x2", "y2"):
+            if key not in item:
+                raise ValueError(f"bowl_rois 每项缺少字段 {key}")
+    return val
+
+
 def create_app(config_path: str = "config.json"):
     app = Flask(__name__)
     cfg = Config(config_path)
@@ -102,9 +123,11 @@ def create_app(config_path: str = "config.json"):
         try:
             data = request.get_json(force=True)
             if "customer_roi" in data:
-                cfg.set("vision.customer_roi", json.loads(data["customer_roi"]))
+                roi = _validate_customer_roi(json.loads(data["customer_roi"]))
+                cfg.set("vision.customer_roi", roi)
             if "bowl_rois" in data:
-                cfg.set("vision.bowl_rois", json.loads(data["bowl_rois"]))
+                rois = _validate_bowl_rois(json.loads(data["bowl_rois"]))
+                cfg.set("vision.bowl_rois", rois)
             if "confidence" in data:
                 cfg.set("vision.confidence_threshold", data["confidence"])
             if "vote_frames" in data:

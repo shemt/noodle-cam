@@ -8,10 +8,10 @@ from video.recorder import VideoRecorder
 def test_cleanup_deletes_oldest_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         rec = VideoRecorder(tmpdir, max_storage_gb=0.0001)  # ~100KB
-        old = Path(tmpdir) / "old.mp4"
+        old = Path(tmpdir) / "noodlecam_old.mp4"
         old.write_bytes(b"x" * 60000)
         time.sleep(0.1)
-        new = Path(tmpdir) / "new.mp4"
+        new = Path(tmpdir) / "noodlecam_new.mp4"
         new.write_bytes(b"x" * 60000)
         rec._cleanup_if_needed()
         assert not old.exists()

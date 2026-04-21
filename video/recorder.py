@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 class VideoRecorder:
     """MP4 分段录制 + 2G 循环清理"""
 
-    def __init__(self, record_dir: str, max_storage_gb: int = 2):
+    def __init__(self, record_dir: str, max_storage_gb: int = 2, input_device: str = "/dev/video0"):
         self.record_dir = Path(record_dir)
         self.max_storage_bytes = max_storage_gb * 1024 * 1024 * 1024
+        self.input_device = input_device
         self.current_process: Optional[subprocess.Popen] = None
         self.current_file: Optional[Path] = None
         os.makedirs(self.record_dir, exist_ok=True)
@@ -27,11 +28,11 @@ class VideoRecorder:
         self._cleanup_if_needed()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = f"_{tag}" if tag else ""
-        filename = f"{timestamp}{suffix}.mp4"
+        filename = f"noodlecam_{timestamp}{suffix}.mp4"
         self.current_file = self.record_dir / filename
 
         cmd = [
-            "ffmpeg", "-y", "-f", "v4l2", "-i", "/dev/video0",
+            "ffmpeg", "-y", "-f", "v4l2", "-i", self.input_device,
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
             "-an", str(self.current_file)
         ]
@@ -59,7 +60,7 @@ class VideoRecorder:
         return None
 
     def _cleanup_if_needed(self):
-        files = [f for f in self.record_dir.glob("*.mp4") if f.is_file()]
+        files = [f for f in self.record_dir.glob("noodlecam_*.mp4") if f.is_file()]
         total = sum(f.stat().st_size for f in files)
         while total > self.max_storage_bytes * 0.9 and files:
             files.sort(key=lambda f: f.stat().st_mtime)

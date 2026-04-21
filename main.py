@@ -53,15 +53,19 @@ class NoodleCamApp:
             self.config.get("audio.pre_recorded", True),
             self.config.get("audio.audio_dir", "audio_clips")
         )
+        cam_index = self.config.get("camera.index", 0)
+        video_device = f"/dev/video{cam_index}"
         self.backend = BackendClient(
             self.config.get("backend.url", "http://localhost:5000"),
             self.config.get("backend.heartbeat_interval", 30)
         )
         self.recorder = VideoRecorder(
             self.config.get("video.record_dir", "recordings"),
-            self.config.get("video.max_storage_gb", 2)
+            self.config.get("video.max_storage_gb", 2),
+            input_device=video_device
         )
         self.streamer = RTSPStreamer(
+            input_device=video_device,
             fps=self.config.get("video.rtsp_fps", 1)
         )
         self.sm = StateMachine()
@@ -164,6 +168,8 @@ class NoodleCamApp:
 def main():
     app = NoodleCamApp()
     signal.signal(signal.SIGINT, lambda s, f: app.shutdown())
+    signal.signal(signal.SIGTERM, lambda s, f: app.shutdown())
+    app.backend.register_callback("/device/notify_meal_ready", lambda data: app.sm.trigger("meal_ready"))
     app.run()
 
 
