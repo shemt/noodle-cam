@@ -1,0 +1,43 @@
+<h2>系统架构方案对比</h2>
+<p class="subtitle">三种不同的 RV1126 端软件组织方式，各有侧重</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>轻量级单体架构（推荐）</h3>
+      <p>RV1126 上运行一个 Python 主进程，内部按模块组织（视觉、语音、通信、视频流、配置服务），共享同一份内存空间。</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>开发周期短，适合快速验证</li><li>模块间通信简单（直接函数调用）</li><li>部署方便，单条命令启动</li><li>资源占用相对可控</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>模块耦合度高</li><li>单个模块异常可能影响全局</li><li>不利于后续独立升级某个模块</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>多进程微服务架构</h3>
+      <p>RV1126 上运行多个独立进程：视觉检测、语音播报、设备控制、视频推流、配置管理、云端桥接。进程间通过 ZeroMQ/消息队列通信。</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>模块崩溃互不影响，容错性好</li><li>可独立重启/更新单个模块</li><li>逻辑边界清晰，易于多人协作</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>IPC 设计与调试复杂度增加</li><li>内存占用略高（多份 Python 解释器）</li><li>初期开发工作量更大</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>混合分层架构</h3>
+      <p>RV1126 端仅保留硬实时模块（视觉推理、设备控制、音频播放、视频采集），配置界面、LLM 备用、视频存储管理、复杂业务状态机放到局域网内的边缘网关或后台服务器。</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>RV1126 负载最轻，运行更稳定</li><li>复杂逻辑在服务器上更易维护</li><li>可利用服务器更丰富的算力做 LLM fallback</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>强依赖局域网/网络稳定性</li><li>需要额外部署边缘服务</li><li>延迟可能增加（网络往返）</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">推荐意见</p>
+  <p>考虑到项目需要快速落地且团队以 Python 为主，我建议选择 <strong>方案 A（轻量级单体架构）</strong> 作为第一阶段实现。但在代码组织上预留模块化接口，后续可平滑演进为方案 B。对于视频存储和 LLM 备用功能，本身就需要与后台/云端交互，天然具备分层特性。</p>
+</div>

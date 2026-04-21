@@ -1,0 +1,6 @@
+{"type":"server-started","port":53345,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:53345","screen_dir":"/Users/a22211/code/noodle_cam/.superpowers/brainstorm/53441-1776739582/content","state_dir":"/Users/a22211/code/noodle_cam/.superpowers/brainstorm/53441-1776739582/state"}
+{"type":"screen-added","file":"/Users/a22211/code/noodle_cam/.superpowers/brainstorm/53441-1776739582/content/waiting.html"}
+{"type":"screen-added","file":"/Users/a22211/code/noodle_cam/.superpowers/brainstorm/53441-1776739582/content/arch-options.html"}
+{"source":"user-event","type":"click","text":"A\n    \n      轻量级单体架构（推荐）\n      RV1126 上运行一个 Python 主进程，内部按模块组织（视觉、语音、通信、视频流、配置服务），共享同一份内存空间。\n      \n        优点开发周期短，适合快速验证模块间通信简单（直接函数调用）部署方便，单条命令启动资源占用相对可控\n        缺点模块耦合度高单个模块异常可能影响全局不利于后续独立升级某个模块","choice":"a","id":null,"timestamp":1776740032988}
+{"type":"screen-added","file":"/Users/a22211/code/noodle_cam/.superpowers/brainstorm/53441-1776739582/content/waiting-2.html"}
+{"type":"server-stopped","reason":"idle timeout"}
