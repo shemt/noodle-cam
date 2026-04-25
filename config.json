@@ -8,46 +8,25 @@
     "model_path": "models/yolov5s.onnx",
     "confidence_threshold": 0.5,
     "customer_roi": {
-      "x1": 0,
-      "y1": 0,
-      "x2": 640,
-      "y2": 480
+      "x1": 48,
+      "y1": 57,
+      "x2": 1000,
+      "y2": 703
     },
     "bowl_rois": [
       {
         "id": 1,
-        "x1": 146,
-        "y1": 88,
-        "x2": 186,
-        "y2": 132
-      },
-      {
-        "id": 2,
-        "x1": 252,
-        "y1": 98,
-        "x2": 305,
-        "y2": 157
-      },
-      {
-        "id": 3,
-        "x1": 392,
-        "y1": 112,
-        "x2": 466,
-        "y2": 163
+        "x1": 136,
+        "y1": 79,
+        "x2": 216,
+        "y2": 150
       },
       {
         "id": 4,
-        "x1": 351,
-        "y1": 232,
-        "x2": 412,
-        "y2": 303
-      },
-      {
-        "id": 5,
-        "x1": 134,
-        "y1": 196,
-        "x2": 212,
-        "y2": 246
+        "x1": 330,
+        "y1": 208,
+        "x2": 448,
+        "y2": 290
       }
     ],
     "vote_frames": 5,
@@ -74,7 +53,7 @@
     "rtsp_fps": 15,
     "rtsp_port": 8554,
     "rtsp_bitrate": 500,
-    "record_enabled": true,
+    "record_enabled": false,
     "record_dir": "recordings",
     "max_storage_gb": 2
   },

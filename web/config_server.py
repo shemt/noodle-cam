@@ -203,7 +203,8 @@ MONITOR_PAGE = """
             <div class="section">
                 <h2>实时画面</h2>
                 <div class="video-wrap" id="videoWrap">
-                    <img id="videoFeed" src="/video_feed" alt="实时视频流">
+                    <img id="videoFeed" src="/video_feed?t=" + Date.now() alt="实时视频流"
+                         onerror="setTimeout(()=>{this.src='/video_feed?t='+Date.now();},1000)">
                     <canvas id="roiCanvas" width="{{ width }}" height="{{ height }}"></canvas>
                     <div class="overlay-label">模式: <span id="modeLabel">客户检测区</span></div>
                 </div>
@@ -586,15 +587,25 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
             return jsonify({"error": "video feed not available"}), 503
 
         def generate():
-            while True:
-                frame = latest_jpeg()
-                if frame:
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-                else:
-                    time.sleep(0.05)
+            try:
+                while True:
+                    frame = latest_jpeg()
+                    if frame:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                    else:
+                        time.sleep(0.05)
+                    # 降低帧率到 ~5fps，减少连接压力
+                    time.sleep(0.15)
+            except (GeneratorExit, BrokenPipeError, ConnectionResetError):
+                pass  # 客户端断开，优雅退出
 
-        return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+        resp = Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+        resp.headers['Connection'] = 'close'
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
 
     @app.route("/api/status")
     def api_status():
