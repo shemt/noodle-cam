@@ -5,7 +5,7 @@
     "height": 720
   },
   "vision": {
-    "model_path": "models/yolov5s_rk3588.rknn",
+    "model_path": "models/yolov5s.onnx",
     "confidence_threshold": 0.5,
     "customer_roi": {
       "x1": 0,

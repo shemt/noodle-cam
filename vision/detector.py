@@ -202,21 +202,28 @@ class YOLODetector:
         return results
 
     def _parse_yolo_outputs(self, outputs, orig_shape) -> List[Dict]:
-        """OpenCV DNN YOLO 输出解析"""
+        """OpenCV DNN YOLO 输出解析 (YOLOv5 ONNX: Nx25200x85)"""
         h, w = orig_shape[:2]
         detections = []
         for output in outputs:
-            for det in output:
+            arr = np.array(output)
+            # 处理 batch 维: (1, 25200, 85) -> (25200, 85)
+            if arr.ndim == 3:
+                arr = arr.reshape(-1, arr.shape[-1])
+            for det in arr:
                 scores = det[5:]
                 class_id = int(np.argmax(scores))
-                confidence = float(scores[class_id])
+                class_score = float(scores[class_id])
+                objectness = float(det[4])
+                confidence = objectness * class_score
                 if confidence < self.confidence:
                     continue
-                cx, cy, bw, bh = det[0:4] * np.array([w, h, w, h])
-                x1 = int(cx - bw / 2)
-                y1 = int(cy - bh / 2)
-                x2 = int(cx + bw / 2)
-                y2 = int(cy + bh / 2)
+                # YOLOv5 ONNX xywh 是模型输入空间 (640x640) 下的像素坐标
+                cx, cy, bw, bh = det[0:4]
+                x1 = int((cx - bw / 2) * w / self.input_size)
+                y1 = int((cy - bh / 2) * h / self.input_size)
+                x2 = int((cx + bw / 2) * w / self.input_size)
+                y2 = int((cy + bh / 2) * h / self.input_size)
                 name = COCO_NAMES[class_id] if class_id < len(COCO_NAMES) else f"cls_{class_id}"
                 detections.append({
                     "class": name,
