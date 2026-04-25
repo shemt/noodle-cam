@@ -65,6 +65,7 @@ class NoodleCamApp:
             self.config.get("video.max_storage_gb", 2),
             input_device=video_device
         )
+        self.recorder.enabled = self.config.get("video.record_enabled", True)
         self.streamer = RTSPStreamer(
             fps=self.config.get("video.rtsp_fps", 15),
             width=self.config.get("camera.width", 640),
@@ -75,6 +76,18 @@ class NoodleCamApp:
         self.sm = StateMachine()
         self._setup_state_handlers()
         self._web_thread = None
+
+        # 线程安全的运行时状态，供 Web 端读取
+        self._state_lock = threading.Lock()
+        self._app_state = {
+            "detections": [],
+            "state": "IDLE",
+            "recording": False,
+            "record_enabled": self.recorder.enabled,
+            "fps": 0.0,
+            "timestamp": 0.0,
+            "frame_count": 0,
+        }
 
     def _setup_state_handlers(self):
         self.sm.on("customer_approach", self._on_customer_approach)
@@ -185,7 +198,7 @@ class NoodleCamApp:
         web_cfg = self.config.get("web", {})
         web_host = web_cfg.get("host", "0.0.0.0")
         web_port = web_cfg.get("port", 8080)
-        app = create_app("config.json")
+        app = create_app("config.json", app_state=self._app_state, recorder=self.recorder, config=self.config)
         self._web_thread = threading.Thread(
             target=app.run,
             kwargs={"host": web_host, "port": web_port, "threaded": True, "debug": False},
@@ -203,8 +216,11 @@ class NoodleCamApp:
             return
 
         logger.info("系统启动，进入空闲状态")
+        frame_count = 0
+        last_fps_time = time.time()
         try:
             while self.running:
+                loop_start = time.time()
                 frame = self.camera.read()
                 if frame is None:
                     time.sleep(0.1)
@@ -232,7 +248,28 @@ class NoodleCamApp:
                         if ev["event"] == "removed":
                             self.sm.trigger("bowl_removed", event=ev)
 
-                time.sleep(0.05)
+                frame_count += 1
+                now = time.time()
+                if now - last_fps_time >= 1.0:
+                    fps = frame_count / (now - last_fps_time)
+                    frame_count = 0
+                    last_fps_time = now
+                else:
+                    fps = self._app_state.get("fps", 0)
+
+                with self._state_lock:
+                    self._app_state["detections"] = [dict(d) for d in detections]
+                    self._app_state["state"] = self.sm.state.name
+                    self._app_state["recording"] = self.recorder.is_recording()
+                    self._app_state["record_enabled"] = self.recorder.enabled
+                    self._app_state["fps"] = round(fps, 1)
+                    self._app_state["timestamp"] = now
+                    self._app_state["frame_count"] = self._app_state.get("frame_count", 0) + 1
+
+                elapsed = time.time() - loop_start
+                sleep_time = max(0, 0.05 - elapsed)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
         except KeyboardInterrupt:
             logger.info("收到中断信号")
         finally:

@@ -1,11 +1,19 @@
 import json
 import logging
 from pathlib import Path
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
 
 from config.settings import Config
 
 logger = logging.getLogger(__name__)
+
+NAV_BAR = """
+<div style="background:#333;color:#fff;padding:10px 20px;margin:-20px -20px 20px -20px;">
+    <a href="/" style="color:#fff;text-decoration:none;margin-right:20px;font-weight:bold;">配置</a>
+    <a href="/monitor" style="color:#fff;text-decoration:none;margin-right:20px;font-weight:bold;">监控</a>
+    <a href="/recordings" style="color:#fff;text-decoration:none;font-weight:bold;">录像管理</a>
+</div>
+"""
 
 HTML_PAGE = """
 <!DOCTYPE html>
@@ -49,6 +57,7 @@ HTML_PAGE = """
     </style>
 </head>
 <body>
+    """ + NAV_BAR + """
     <h1>NoodleCam 配置界面</h1>
     <div class="container">
         <div class="panel">
@@ -376,6 +385,241 @@ HTML_PAGE = """
 </html>
 """
 
+MONITOR_PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NoodleCam 监控</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .panel { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 1; min-width: 360px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+        .stat-card { background: #f8f9fa; padding: 12px; border-radius: 6px; text-align: center; border-left: 4px solid #007bff; }
+        .stat-card.recording-on { border-left-color: #28a745; }
+        .stat-card.recording-off { border-left-color: #dc3545; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #333; }
+        .stat-label { font-size: 12px; color: #666; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f8f9fa; }
+        .empty { color: #999; padding: 20px; text-align: center; }
+        .btn-primary { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-danger { background: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .badge-person { background: #d4edda; color: #155724; }
+        .badge-bowl { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    """ + NAV_BAR + """
+    <h1>NoodleCam 实时监控</h1>
+    <div class="container">
+        <div class="panel">
+            <h2>系统概览</h2>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stateVal">--</div>
+                    <div class="stat-label">当前状态</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="fpsVal">--</div>
+                    <div class="stat-label">FPS</div>
+                </div>
+                <div class="stat-card" id="recCard">
+                    <div class="stat-value" id="recVal">--</div>
+                    <div class="stat-label">录像</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="detVal">--</div>
+                    <div class="stat-label">检测目标</div>
+                </div>
+            </div>
+            <div style="margin-top:16px;">
+                <button id="recToggle" class="btn-primary" onclick="toggleRecording()">加载中...</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>检测目标</h2>
+            <div id="detTableWrap">
+                <div class="empty">暂无检测数据</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let lastRecordEnabled = null;
+
+    async function fetchStatus() {
+        try {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            updateUI(data);
+        } catch (e) {
+            console.error('获取状态失败:', e);
+        }
+    }
+
+    function updateUI(data) {
+        document.getElementById('stateVal').textContent = data.state || 'UNKNOWN';
+        document.getElementById('fpsVal').textContent = data.fps || 0;
+        document.getElementById('detVal').textContent = (data.detections || []).length;
+
+        const recVal = document.getElementById('recVal');
+        const recCard = document.getElementById('recCard');
+        const recToggle = document.getElementById('recToggle');
+
+        const recText = data.recording ? '录制中' : (data.record_enabled ? '待命' : '已关闭');
+        recVal.textContent = recText;
+        recCard.className = 'stat-card ' + (data.recording ? 'recording-on' : (data.record_enabled ? '' : 'recording-off'));
+
+        if (lastRecordEnabled !== data.record_enabled) {
+            lastRecordEnabled = data.record_enabled;
+            recToggle.textContent = data.record_enabled ? '关闭录像' : '开启录像';
+            recToggle.className = data.record_enabled ? 'btn-danger' : 'btn-primary';
+        }
+
+        const wrap = document.getElementById('detTableWrap');
+        const dets = data.detections || [];
+        if (dets.length === 0) {
+            wrap.innerHTML = '<div class="empty">当前未检测到目标</div>';
+        } else {
+            let html = '<table><tr><th>类别</th><th>置信度</th><th>边界框</th></tr>';
+            dets.forEach(d => {
+                const badgeClass = d.class === 'person' ? 'badge-person' : (d.class === 'bowl' ? 'badge-bowl' : '');
+                html += `<tr><td><span class="badge ${badgeClass}">${d.class}</span></td>` +
+                        `<td>${d.conf}</td><td>[${d.bbox.join(', ')}]</td></tr>`;
+            });
+            html += '</table>';
+            wrap.innerHTML = html;
+        }
+    }
+
+    async function toggleRecording() {
+        const newEnabled = !lastRecordEnabled;
+        try {
+            const res = await fetch('/api/recording', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled: newEnabled})
+            });
+            const data = await res.json();
+            if (data.success) {
+                lastRecordEnabled = newEnabled;
+                const btn = document.getElementById('recToggle');
+                btn.textContent = newEnabled ? '关闭录像' : '开启录像';
+                btn.className = newEnabled ? 'btn-danger' : 'btn-primary';
+            }
+        } catch (e) {
+            alert('切换失败: ' + e);
+        }
+    }
+
+    fetchStatus();
+    setInterval(fetchStatus, 1000);
+    </script>
+</body>
+</html>
+"""
+
+RECORDINGS_PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NoodleCam 录像管理</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .panel { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 900px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f8f9fa; }
+        .btn-primary { background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-danger { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .empty { color: #999; padding: 30px; text-align: center; }
+        .size { color: #666; font-family: monospace; }
+        .mtime { color: #666; font-size: 13px; }
+    </style>
+</head>
+<body>
+    """ + NAV_BAR + """
+    <h1>录像文件管理</h1>
+    <div class="panel">
+        <div id="fileListWrap">
+            <div class="empty">正在加载...</div>
+        </div>
+    </div>
+
+    <script>
+    async function loadFiles() {
+        try {
+            const res = await fetch('/api/recordings');
+            const data = await res.json();
+            renderFiles(data.files || []);
+        } catch (e) {
+            document.getElementById('fileListWrap').innerHTML = '<div class="empty">加载失败: ' + e + '</div>';
+        }
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+        if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
+        return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+    }
+
+    function formatTime(ts) {
+        const d = new Date(ts * 1000);
+        return d.toLocaleString();
+    }
+
+    function renderFiles(files) {
+        const wrap = document.getElementById('fileListWrap');
+        if (files.length === 0) {
+            wrap.innerHTML = '<div class="empty">暂无录像文件</div>';
+            return;
+        }
+        let html = '<table><tr><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr>';
+        files.forEach(f => {
+            html += `<tr>
+                <td>${f.name}</td>
+                <td class="size">${formatBytes(f.size)}</td>
+                <td class="mtime">${formatTime(f.mtime)}</td>
+                <td>
+                    <a class="btn-primary" href="/recordings/${encodeURIComponent(f.name)}" download>下载</a>
+                    <button class="btn-danger" onclick="deleteFile('${f.name}')">删除</button>
+                </td>
+            </tr>`;
+        });
+        html += '</table>';
+        wrap.innerHTML = html;
+    }
+
+    async function deleteFile(name) {
+        if (!confirm('确定删除 ' + name + ' 吗？')) return;
+        try {
+            const res = await fetch('/api/recordings/' + encodeURIComponent(name), {method: 'DELETE'});
+            const data = await res.json();
+            if (data.success) {
+                loadFiles();
+            } else {
+                alert('删除失败: ' + (data.message || '未知错误'));
+            }
+        } catch (e) {
+            alert('删除失败: ' + e);
+        }
+    }
+
+    loadFiles();
+    </script>
+</body>
+</html>
+"""
+
 
 def _validate_customer_roi(val):
     if not isinstance(val, dict):
@@ -398,27 +642,91 @@ def _validate_bowl_rois(val):
     return val
 
 
-def create_app(config_path: str = "config.json"):
+def create_app(config_path: str = "config.json", app_state=None, recorder=None, config=None):
     app = Flask(__name__)
-    cfg = Config(config_path)
+    if config is None:
+        config = Config(config_path)
 
     @app.route("/")
     def index():
-        msgs = cfg.get("audio.messages", {})
+        msgs = config.get("audio.messages", {})
         return render_template_string(
             HTML_PAGE,
-            width=cfg.get("camera.width", 1280),
-            height=cfg.get("camera.height", 720),
-            confidence=cfg.get("vision.confidence_threshold", 0.5),
-            vote_frames=cfg.get("vision.vote_frames", 5),
-            vote_threshold=cfg.get("vision.vote_threshold", 4),
-            debounce=cfg.get("vision.debounce_seconds", 2.0),
-            llm_enabled=cfg.get("llm.enabled", False),
+            width=config.get("camera.width", 1280),
+            height=config.get("camera.height", 720),
+            confidence=config.get("vision.confidence_threshold", 0.5),
+            vote_frames=config.get("vision.vote_frames", 5),
+            vote_threshold=config.get("vision.vote_threshold", 4),
+            debounce=config.get("vision.debounce_seconds", 2.0),
+            llm_enabled=config.get("llm.enabled", False),
             msg_customer=msgs.get("customer_approach", "请拿碗放在碗托上"),
             msg_bowl_placed=msgs.get("bowl_placed", "已检测到放碗"),
             msg_meal_ready=msgs.get("meal_ready", "您的餐已准备好，请取餐"),
             msg_bowl_removed=msgs.get("bowl_removed", "碗已取走，请慢用"),
         )
+
+    @app.route("/monitor")
+    def monitor():
+        return render_template_string(MONITOR_PAGE)
+
+    @app.route("/recordings")
+    def recordings_page():
+        return render_template_string(RECORDINGS_PAGE)
+
+    @app.route("/api/status")
+    def api_status():
+        if app_state is None:
+            return jsonify({"error": "app_state not available"}), 503
+        import copy
+        with app_state.get("_lock", type("DummyLock", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})()):
+            data = {k: v for k, v in app_state.items() if not k.startswith("_")}
+            data["detections"] = copy.deepcopy(data.get("detections", []))
+        return jsonify(data)
+
+    @app.route("/api/recording", methods=["POST"])
+    def api_recording():
+        try:
+            data = request.get_json(force=True)
+            enabled = bool(data.get("enabled", True))
+            if recorder is not None:
+                recorder.enabled = enabled
+                # 如果关闭录像且正在录制，则停止
+                if not enabled and recorder.is_recording():
+                    recorder.stop()
+            config.set("video.record_enabled", enabled)
+            config.save()
+            logger.info(f"录像开关已设置: enabled={enabled}")
+            return jsonify({"success": True, "enabled": enabled})
+        except Exception as e:
+            logger.error(f"录像开关切换失败: {e}")
+            return jsonify({"success": False, "message": str(e)}), 400
+
+    @app.route("/api/recordings")
+    def api_recordings():
+        if recorder is None:
+            return jsonify({"files": []})
+        files = recorder.list_recordings()
+        return jsonify({"files": files})
+
+    @app.route("/api/recordings/<path:name>", methods=["DELETE"])
+    def api_delete_recording(name):
+        if recorder is None:
+            return jsonify({"success": False, "message": "recorder not available"}), 503
+        ok = recorder.delete_recording(name)
+        return jsonify({"success": ok})
+
+    @app.route("/recordings/<path:name>")
+    def download_recording(name):
+        if recorder is None:
+            return jsonify({"error": "recorder not available"}), 503
+        safe_path = (recorder.record_dir / name).resolve()
+        try:
+            safe_path.relative_to(recorder.record_dir.resolve())
+        except ValueError:
+            return jsonify({"error": "invalid path"}), 403
+        if not safe_path.exists():
+            return jsonify({"error": "file not found"}), 404
+        return send_from_directory(str(recorder.record_dir), name, as_attachment=True)
 
     @app.route("/api/config", methods=["POST"])
     def update_config():
@@ -426,25 +734,25 @@ def create_app(config_path: str = "config.json"):
             data = request.get_json(force=True)
             if "customer_roi" in data:
                 roi = _validate_customer_roi(json.loads(data["customer_roi"]))
-                cfg.set("vision.customer_roi", roi)
+                config.set("vision.customer_roi", roi)
             if "bowl_rois" in data:
                 rois = _validate_bowl_rois(json.loads(data["bowl_rois"]))
-                cfg.set("vision.bowl_rois", rois)
+                config.set("vision.bowl_rois", rois)
             if "confidence" in data:
-                cfg.set("vision.confidence_threshold", data["confidence"])
+                config.set("vision.confidence_threshold", data["confidence"])
             if "vote_frames" in data:
-                cfg.set("vision.vote_frames", data["vote_frames"])
+                config.set("vision.vote_frames", data["vote_frames"])
             if "vote_threshold" in data:
-                cfg.set("vision.vote_threshold", data["vote_threshold"])
+                config.set("vision.vote_threshold", data["vote_threshold"])
             if "debounce" in data:
-                cfg.set("vision.debounce_seconds", data["debounce"])
+                config.set("vision.debounce_seconds", data["debounce"])
             if "llm_enabled" in data:
-                cfg.set("llm.enabled", data["llm_enabled"])
+                config.set("llm.enabled", data["llm_enabled"])
             if "messages" in data:
                 msgs = data["messages"]
                 if isinstance(msgs, dict):
-                    cfg.set("audio.messages", msgs)
-            cfg.save()
+                    config.set("audio.messages", msgs)
+            config.save()
             logger.info("配置已更新并保存")
             return jsonify({"success": True, "message": "配置保存成功"})
         except Exception as e:
@@ -453,7 +761,7 @@ def create_app(config_path: str = "config.json"):
 
     @app.route("/api/config", methods=["GET"])
     def get_config():
-        return jsonify(cfg.data)
+        return jsonify(config.data)
 
     return app
 

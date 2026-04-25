@@ -4,7 +4,7 @@ import time
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -19,9 +19,13 @@ class VideoRecorder:
         self.input_device = input_device
         self.current_process: Optional[subprocess.Popen] = None
         self.current_file: Optional[Path] = None
+        self.enabled = True
         os.makedirs(self.record_dir, exist_ok=True)
 
     def start(self, tag: str = ""):
+        if not self.enabled:
+            logger.debug("录制已禁用，跳过")
+            return
         if platform.system() != "Linux":
             logger.debug("非 Linux 平台跳过 v4l2 录制")
             return
@@ -62,6 +66,38 @@ class VideoRecorder:
             self.current_file = None
             return file
         return None
+
+    def is_recording(self) -> bool:
+        return self.current_process is not None and self.current_process.poll() is None
+
+    def list_recordings(self) -> List[Dict]:
+        files = []
+        for f in sorted(self.record_dir.glob("noodlecam_*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True):
+            if f.is_file():
+                st = f.stat()
+                files.append({
+                    "name": f.name,
+                    "size": st.st_size,
+                    "mtime": st.st_mtime,
+                })
+        return files
+
+    def delete_recording(self, name: str) -> bool:
+        target = self.record_dir / name
+        try:
+            # 安全检查：确保文件在 recordings 目录内
+            target.resolve().relative_to(self.record_dir.resolve())
+        except ValueError:
+            logger.warning(f"非法路径: {name}")
+            return False
+        if target.exists() and target.is_file():
+            try:
+                target.unlink()
+                logger.info(f"删除录像: {target}")
+                return True
+            except OSError as e:
+                logger.error(f"删除录像失败: {e}")
+        return False
 
     def _cleanup_if_needed(self):
         files = [f for f in self.record_dir.glob("noodlecam_*.mp4") if f.is_file()]
