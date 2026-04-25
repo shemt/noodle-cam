@@ -5,7 +5,7 @@
     "height": 720
   },
   "vision": {
-    "model_path": "models/yolov5s.rknn",
+    "model_path": "models/yolov5s_rk3588.rknn",
     "confidence_threshold": 0.5,
     "customer_roi": {
       "x1": 0,
@@ -20,16 +20,24 @@
   },
   "audio": {
     "volume": 80,
-    "pre_recorded": true,
-    "audio_dir": "audio_clips"
+    "audio_dir": "audio_clips",
+    "voice": "zh-CN-XiaoxiaoNeural",
+    "messages": {
+      "customer_approach": "请拿碗放在碗托上",
+      "meal_ready": "您的餐已准备好，请取餐",
+      "bowl_placed": "已检测到放碗",
+      "bowl_removed": "碗已取走，请慢用"
+    }
   },
   "backend": {
     "url": "http://localhost:5000",
-    "heartbeat_interval": 30
+    "heartbeat_interval": 86400
   },
   "video": {
     "rtsp_enabled": true,
-    "rtsp_fps": 1,
+    "rtsp_fps": 15,
+    "rtsp_port": 8554,
+    "rtsp_bitrate": 500,
     "record_enabled": true,
     "record_dir": "recordings",
     "max_storage_gb": 2
@@ -42,6 +50,6 @@
   },
   "web": {
     "host": "0.0.0.0",
-    "port": 8080
+    "port": 8090
   }
 }

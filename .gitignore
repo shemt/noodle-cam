@@ -1,0 +1,10 @@
+.DS_Store
+*.rknn
+.superpowers/
+docs/*.pdf
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/

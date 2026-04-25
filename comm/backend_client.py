@@ -47,7 +47,7 @@ class BackendClient:
     def send_video_clip(self, data: Dict[str, Any]):
         self._post("/device/video_clip", data)
 
-    def _post(self, endpoint: str, payload: Dict[str, Any]):
+    def _post(self, endpoint: str, payload: Dict[str, Any], retry: bool = True):
         url = f"{self.base_url}{endpoint}"
         try:
             resp = requests.post(url, json=payload, timeout=5)
@@ -55,18 +55,20 @@ class BackendClient:
             logger.debug(f"POST {endpoint} 成功")
         except Exception as e:
             logger.warning(f"POST {endpoint} 失败: {e}")
-            self._queue.put(("post", endpoint, payload))
+            if retry:
+                self._queue.put(("post", endpoint, payload))
 
     def _worker(self):
-        last_hb = 0
+        last_hb = time.time() if self.heartbeat_interval > 0 else None
         while self._running:
             while not self._queue.empty():
                 _, endpoint, payload = self._queue.get()
                 self._post(endpoint, payload)
 
-            now = time.time()
-            if now - last_hb >= self.heartbeat_interval:
-                self.send_heartbeat({"timestamp": now, "status": "ok", "mode": "local"})
-                last_hb = now
+            if self.heartbeat_interval > 0 and last_hb is not None:
+                now = time.time()
+                if now - last_hb >= self.heartbeat_interval:
+                    self._post("/device/heartbeat", {"timestamp": now, "status": "ok", "mode": "local"}, retry=False)
+                    last_hb = now
 
             time.sleep(1)
