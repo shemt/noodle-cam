@@ -172,14 +172,19 @@ MONITOR_PAGE = """
         .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
         .badge-person { background: #d4edda; color: #155724; }
         .badge-bowl { background: #fff3cd; color: #856404; }
-        .canvas-wrap {
+        .video-wrap {
             position: relative; display: inline-block; border: 1px solid #ccc;
-            background: #1a1a2e; overflow: hidden; width: 100%; max-width: {{ width }}px;
+            background: #000; overflow: hidden; width: 100%; max-width: {{ width }}px;
         }
-        canvas { display: block; cursor: crosshair; width: 100%; height: auto; }
+        .video-wrap img { display: block; width: 100%; height: auto; }
+        .video-wrap canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            cursor: crosshair; z-index: 2;
+        }
         .overlay-label {
-            position: absolute; top: 4px; left: 4px; color: #0f0;
+            position: absolute; top: 4px; left: 4px; color: #0f0; z-index: 3;
             font-size: 12px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px;
+            pointer-events: none;
         }
         .roi-tag {
             display: inline-block; padding: 3px 8px; margin: 3px 3px 0 0;
@@ -197,24 +202,17 @@ MONITOR_PAGE = """
         <div class="panel panel-left">
             <div class="section">
                 <h2>实时画面</h2>
-                <div class="video-wrap">
+                <div class="video-wrap" id="videoWrap">
                     <img id="videoFeed" src="/video_feed" alt="实时视频流">
+                    <canvas id="roiCanvas" width="{{ width }}" height="{{ height }}"></canvas>
+                    <div class="overlay-label">模式: <span id="modeLabel">客户检测区</span></div>
                 </div>
-                <p class="info">画面已叠加检测框（绿色=人，橙色=碗）和 ROI 区域</p>
-            </div>
-
-            <div class="section">
-                <h2>ROI 区域设定</h2>
-                <p class="info">分辨率: {{ width }}x{{ height }} | 在下方画布拖拽框选区域</p>
-                <div>
+                <p class="info">分辨率: {{ width }}x{{ height }} | 在画面上方拖拽框选 ROI 区域</p>
+                <div style="margin-top:8px;">
                     <button id="btnCustomer" class="mode-active" onclick="setMode('customer')">客户检测区</button>
                     <button id="btnBowl" onclick="setMode('bowl')">碗位检测区</button>
                     <button class="btn-secondary" onclick="clearAll()">清空全部</button>
                     <button class="btn-primary" onclick="saveRoi()">保存 ROI</button>
-                </div>
-                <div class="canvas-wrap" id="canvasWrap" style="margin-top:8px;">
-                    <canvas id="roiCanvas" width="{{ width }}" height="{{ height }}"></canvas>
-                    <div class="overlay-label">模式: <span id="modeLabel">客户检测区</span></div>
                 </div>
                 <div style="margin-top:8px;">
                     <label style="font-weight:bold;font-size:13px;">已设定区域</label>
@@ -263,7 +261,6 @@ MONITOR_PAGE = """
     // ========== ROI Canvas ==========
     const canvas = document.getElementById('roiCanvas');
     const ctx = canvas.getContext('2d');
-    const wrap = document.getElementById('canvasWrap');
     let mode = 'customer';
     let isDrawing = false;
     let startX = 0, startY = 0;
@@ -277,22 +274,8 @@ MONITOR_PAGE = """
         scaleX = canvas.width / rect.width;
         scaleY = canvas.height / rect.height;
     }
-    function drawGrid() {
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        const step = 50;
-        for (let x = 0; x <= canvas.width; x += step) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-        }
-        for (let y = 0; y <= canvas.height; y += step) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-        }
-        ctx.fillStyle = '#666';
-        ctx.font = '10px monospace';
-        for (let x = 0; x <= canvas.width; x += step) ctx.fillText(x, x + 2, canvas.height - 2);
-        for (let y = 0; y <= canvas.height; y += step) ctx.fillText(y, 2, y - 2);
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     function drawRoi(roi, color, label) {
         const {x1, y1, x2, y2} = roi;
@@ -305,7 +288,7 @@ MONITOR_PAGE = """
         ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
     }
     function redraw() {
-        drawGrid();
+        clearCanvas();
         if (customerRoi) drawRoi(customerRoi, 'rgb(0, 200, 0)', '客户区');
         bowlRois.forEach(r => drawRoi(r, 'rgb(255, 165, 0)', '碗位#' + r.id));
         if (currentRect) drawRoi(currentRect, 'rgb(0, 150, 255)', '框选中');
@@ -397,10 +380,10 @@ MONITOR_PAGE = """
         redraw();
     });
     function fitCanvas() {
-        const maxW = Math.min(wrap.parentElement.clientWidth - 40, canvas.width);
+        const container = document.getElementById('videoWrap');
+        const maxW = Math.min(container.parentElement.clientWidth - 40, canvas.width);
         const ratio = canvas.height / canvas.width;
-        wrap.style.width = maxW + 'px';
-        wrap.style.height = (maxW * ratio) + 'px';
+        container.style.width = maxW + 'px';
     }
     window.addEventListener('resize', fitCanvas);
     fitCanvas();
