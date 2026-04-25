@@ -74,7 +74,7 @@
     "rtsp_fps": 15,
     "rtsp_port": 8554,
     "rtsp_bitrate": 500,
-    "record_enabled": false,
+    "record_enabled": true,
     "record_dir": "recordings",
     "max_storage_gb": 2
   },

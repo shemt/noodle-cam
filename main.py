@@ -88,6 +88,9 @@ class NoodleCamApp:
             "timestamp": 0.0,
             "frame_count": 0,
         }
+        # MJPEG 视频流帧
+        self._jpeg_lock = threading.Lock()
+        self._latest_jpeg: bytes = b""
 
     def _setup_state_handlers(self):
         self.sm.on("customer_approach", self._on_customer_approach)
@@ -169,6 +172,10 @@ class NoodleCamApp:
         frame = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
         return frame
 
+    def _get_latest_jpeg(self) -> bytes:
+        with self._jpeg_lock:
+            return self._latest_jpeg
+
     def _on_customer_approach(self, old, new, ctx):
         logger.info("检测到客户靠近，播放引导语音")
         self.tts.say("customer_approach")
@@ -198,7 +205,13 @@ class NoodleCamApp:
         web_cfg = self.config.get("web", {})
         web_host = web_cfg.get("host", "0.0.0.0")
         web_port = web_cfg.get("port", 8080)
-        app = create_app("config.json", app_state=self._app_state, recorder=self.recorder, config=self.config)
+        app = create_app(
+            "config.json",
+            app_state=self._app_state,
+            recorder=self.recorder,
+            config=self.config,
+            latest_jpeg=self._get_latest_jpeg,
+        )
         self._web_thread = threading.Thread(
             target=app.run,
             kwargs={"host": web_host, "port": web_port, "threaded": True, "debug": False},
@@ -229,6 +242,12 @@ class NoodleCamApp:
                 detections = self.detector.detect(frame)
                 vis_frame = self._draw_overlay(frame.copy(), detections)
                 self.streamer.push_frame(vis_frame)
+
+                # 编码 JPEG 供 Web MJPEG 流使用
+                import cv2 as _cv2
+                _, jpeg = _cv2.imencode('.jpg', vis_frame)
+                with self._jpeg_lock:
+                    self._latest_jpeg = jpeg.tobytes()
 
                 if self.sm.state == State.IDLE:
                     if self.customer_detector.update(detections):
