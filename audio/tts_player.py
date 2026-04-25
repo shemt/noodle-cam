@@ -1,5 +1,6 @@
 import os
 import asyncio
+import platform
 import threading
 import logging
 import subprocess
@@ -115,12 +116,10 @@ class TTSPlayer:
                 pass
 
     def _play_file(self, path: Path):
+        system = platform.system()
+        cmd = ["afplay", str(path)] if system == "Darwin" else ["aplay", "-q", str(path)]
         try:
-            # 使用 aplay 播放，通过 amixer 调整音量
-            subprocess.run(
-                ["aplay", "-q", str(path)],
-                check=True, timeout=30
-            )
+            subprocess.run(cmd, check=True, timeout=30)
             logger.info(f"播放音频: {path}")
         except Exception as e:
             logger.error(f"播放音频失败: {e}")

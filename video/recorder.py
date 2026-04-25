@@ -1,4 +1,5 @@
 import os
+import platform
 import time
 import logging
 import subprocess
@@ -21,6 +22,9 @@ class VideoRecorder:
         os.makedirs(self.record_dir, exist_ok=True)
 
     def start(self, tag: str = ""):
+        if platform.system() != "Linux":
+            logger.debug("非 Linux 平台跳过 v4l2 录制")
+            return
         if self.current_process:
             logger.warning("录制已在进行中")
             return
