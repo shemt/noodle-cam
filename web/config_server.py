@@ -249,6 +249,17 @@ MONITOR_PAGE = """
             </div>
 
             <div class="section">
+                <h2>调试模拟</h2>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    <button class="btn-secondary" onclick="simulate('customer_approach')">客户靠近</button>
+                    <button class="btn-secondary" onclick="simulate('bowl_placed')">放碗</button>
+                    <button class="btn-secondary" onclick="simulate('meal_ready')">餐品就绪</button>
+                    <button class="btn-secondary" onclick="simulate('bowl_removed')">取碗</button>
+                </div>
+                <div id="simMsg" style="margin-top:6px;font-size:12px;min-height:18px;"></div>
+            </div>
+
+            <div class="section">
                 <h2>检测目标</h2>
                 <div id="detTableWrap">
                     <div class="empty">暂无检测数据</div>
@@ -493,6 +504,22 @@ MONITOR_PAGE = """
             if (data.success) { lastRecordEnabled = newEnabled; fetchStatus(); }
         } catch (e) { alert('切换失败: ' + e); }
     }
+    async function simulate(event) {
+        try {
+            const res = await fetch('/api/simulate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({event})
+            });
+            const data = await res.json();
+            const el = document.getElementById('simMsg');
+            el.textContent = data.message || data.error || '已发送';
+            el.style.color = data.success ? '#28a745' : '#dc3545';
+            setTimeout(() => { el.textContent = ''; }, 3000);
+        } catch (e) {
+            document.getElementById('simMsg').textContent = '请求失败: ' + e;
+        }
+    }
     fetchStatus();
     setInterval(fetchStatus, 1000);
     </script>
@@ -606,7 +633,7 @@ def _validate_bowl_rois(val):
     return val
 
 
-def create_app(config_path: str = "config.json", app_state=None, recorder=None, config=None, latest_jpeg=None):
+def create_app(config_path: str = "config.json", app_state=None, recorder=None, config=None, latest_jpeg=None, state_machine=None):
     app = Flask(__name__)
     if config is None:
         config = Config(config_path)
@@ -709,6 +736,31 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
         except Exception as e:
             logger.error(f"录像开关切换失败: {e}")
             return jsonify({"success": False, "message": str(e)}), 400
+
+    @app.route("/api/simulate", methods=["POST"])
+    def api_simulate():
+        if state_machine is None:
+            return jsonify({"success": False, "error": "state machine not available"}), 503
+        try:
+            data = request.get_json(force=True)
+            event = data.get("event")
+            if event == "customer_approach":
+                state_machine.trigger("customer_approach")
+            elif event == "bowl_placed":
+                state_machine.context["event"] = {"bowl_id": 1, "event": "placed"}
+                state_machine.trigger("bowl_placed")
+            elif event == "meal_ready":
+                state_machine.trigger("meal_ready")
+            elif event == "bowl_removed":
+                state_machine.context["event"] = {"bowl_id": 1, "event": "removed"}
+                state_machine.trigger("bowl_removed")
+            else:
+                return jsonify({"success": False, "error": f"未知事件: {event}"}), 400
+            logger.info(f"模拟事件触发: {event}")
+            return jsonify({"success": True, "message": f"已触发 {event}"})
+        except Exception as e:
+            logger.error(f"模拟事件失败: {e}")
+            return jsonify({"success": False, "error": str(e)}), 400
 
     @app.route("/api/recordings")
     def api_recordings():

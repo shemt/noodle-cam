@@ -212,6 +212,7 @@ class NoodleCamApp:
             recorder=self.recorder,
             config=self.config,
             latest_jpeg=self._get_latest_jpeg,
+            state_machine=self.sm,
         )
         self._web_thread = threading.Thread(
             target=app.run,
