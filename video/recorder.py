@@ -1,22 +1,31 @@
 import os
-import platform
-import time
+import signal
 import logging
 import subprocess
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
 
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 logger = logging.getLogger(__name__)
 
 
 class VideoRecorder:
-    """MP4 分段录制 + 2G 循环清理"""
+    """MP4 分段录制 + 2G 循环清理。
+    通过 ffmpeg stdin 接收 OpenCV BGR 帧，不再直接访问 v4l2 设备，
+    避免与主循环的 VideoCapture 冲突。
+    """
 
-    def __init__(self, record_dir: str, max_storage_gb: int = 2, input_device: str = "/dev/video0"):
+    def __init__(self, record_dir: str, max_storage_gb: int = 2, width: int = 1280, height: int = 720, fps: int = 15):
         self.record_dir = Path(record_dir)
         self.max_storage_bytes = max_storage_gb * 1024 * 1024 * 1024
-        self.input_device = input_device
+        self.width = width
+        self.height = height
+        self.fps = fps
         self.current_process: Optional[subprocess.Popen] = None
         self.current_file: Optional[Path] = None
         self.enabled = True
@@ -25,9 +34,6 @@ class VideoRecorder:
     def start(self, tag: str = ""):
         if not self.enabled:
             logger.debug("录制已禁用，跳过")
-            return
-        if platform.system() != "Linux":
-            logger.debug("非 Linux 平台跳过 v4l2 录制")
             return
         if self.current_process:
             logger.warning("录制已在进行中")
@@ -39,27 +45,56 @@ class VideoRecorder:
         filename = f"noodlecam_{timestamp}{suffix}.mp4"
         self.current_file = self.record_dir / filename
 
+        size = f"{self.width}x{self.height}"
         cmd = [
-            "ffmpeg", "-y", "-f", "v4l2", "-i", self.input_device,
+            "ffmpeg", "-y",
+            "-f", "rawvideo", "-pix_fmt", "bgr24",
+            "-s", size, "-r", str(self.fps),
+            "-i", "-",
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-movflags", "+faststart",
             "-an", str(self.current_file)
         ]
         try:
             self.current_process = subprocess.Popen(
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
             )
             logger.info(f"开始录制: {self.current_file}")
         except Exception as e:
             logger.error(f"启动录制失败: {e}")
 
+    def write_frame(self, frame) -> bool:
+        """将一帧 OpenCV BGR 图像写入 ffmpeg stdin。"""
+        if self.current_process is None or self.current_process.poll() is not None:
+            return False
+        try:
+            if frame.shape[1] != self.width or frame.shape[0] != self.height:
+                import cv2
+                frame = cv2.resize(frame, (self.width, self.height))
+            self.current_process.stdin.write(frame.tobytes())
+            return True
+        except (BrokenPipeError, OSError) as e:
+            logger.warning(f"写入录制帧失败: {e}")
+            return False
+
     def stop(self) -> Optional[Path]:
         if self.current_process:
-            self.current_process.terminate()
+            # 先关闭 stdin 停止输入，再发送 SIGINT 让 ffmpeg 优雅完成编码
             try:
-                self.current_process.wait(timeout=5)
+                self.current_process.stdin.close()
+            except Exception:
+                pass
+            try:
+                self.current_process.send_signal(signal.SIGINT)
+                self.current_process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                self.current_process.kill()
-                self.current_process.wait()
+                logger.warning("ffmpeg 优雅退出超时，强制终止")
+                self.current_process.terminate()
+                try:
+                    self.current_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.current_process.kill()
+                    self.current_process.wait()
             self.current_process = None
             logger.info(f"停止录制: {self.current_file}")
             file = self.current_file

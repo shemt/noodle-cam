@@ -61,10 +61,14 @@ class NoodleCamApp:
             self.config.get("backend.url", "http://localhost:5000"),
             self.config.get("backend.heartbeat_interval", 30)
         )
+        cam_w = self.config.get("camera.width", 1280)
+        cam_h = self.config.get("camera.height", 720)
         self.recorder = VideoRecorder(
             self.config.get("video.record_dir", "recordings"),
             self.config.get("video.max_storage_gb", 2),
-            input_device=video_device
+            width=cam_w,
+            height=cam_h,
+            fps=self.config.get("video.rtsp_fps", 15),
         )
         self.recorder.enabled = self.config.get("video.record_enabled", True)
         self.streamer = RTSPStreamer(
@@ -248,6 +252,7 @@ class NoodleCamApp:
 
                 vis_frame = self._draw_overlay(frame.copy(), detections)
                 self.streamer.push_frame(vis_frame)
+                self.recorder.write_frame(vis_frame)
 
                 # 编码 JPEG 供 Web MJPEG 流使用
                 import cv2 as _cv2
