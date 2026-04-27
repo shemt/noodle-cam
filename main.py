@@ -37,7 +37,8 @@ class NoodleCamApp:
         )
         self.detector = YOLODetector(
             self.config.get("vision.model_path", "models/yolov5s.rknn"),
-            self.config.get("vision.confidence_threshold", 0.5)
+            self.config.get("vision.confidence_threshold", 0.5),
+            inference_interval=self.config.get("vision.inference_interval", 1)
         )
         self.customer_detector = CustomerDetector(
             self.config.get("vision.customer_roi", {})
@@ -228,6 +229,7 @@ class NoodleCamApp:
             logger.error("摄像头打开失败，退出")
             return
 
+        self.detector.start_async()
         logger.info("系统启动，进入空闲状态")
         frame_count = 0
         last_fps_time = time.time()
@@ -239,7 +241,10 @@ class NoodleCamApp:
                     time.sleep(0.1)
                     continue
 
-                detections = self.detector.detect(frame)
+                # 异步推理：提交帧，获取最新结果（不阻塞主循环）
+                self.detector.submit_frame(frame)
+                detections = self.detector.get_latest_results()
+
                 vis_frame = self._draw_overlay(frame.copy(), detections)
                 self.streamer.push_frame(vis_frame)
 
@@ -303,6 +308,7 @@ class NoodleCamApp:
         self.recorder.stop()
         self.streamer.stop()
         self.backend.stop()
+        self.detector.stop_async()
         self.detector.release()
         logger.info("系统已关闭")
 

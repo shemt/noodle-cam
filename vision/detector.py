@@ -1,4 +1,6 @@
 import logging
+import queue
+import threading
 from typing import List, Dict
 from pathlib import Path
 
@@ -39,15 +41,90 @@ STRIDES = [8, 16, 32]
 
 
 class YOLODetector:
-    """YOLO 目标检测封装，优先 RKNN NPU，fallback 到 ONNX/OpenCV DNN"""
+    """YOLO 目标检测封装，优先 RKNN NPU，fallback 到 ONNX/OpenCV DNN。
+    支持异步推理：主线程提交帧，后台线程执行推理，不阻塞视频流。
+    """
 
-    def __init__(self, model_path: str, confidence: float = 0.5, input_size: int = 640):
+    def __init__(self, model_path: str, confidence: float = 0.5, input_size: int = 640, inference_interval: int = 1):
         self.model_path = Path(model_path)
         self.confidence = confidence
         self.input_size = input_size
+        self.inference_interval = max(1, inference_interval)  # 每 N 帧推理一次
         self._rknn = None
         self._net = None
         self._load_model()
+
+        # 异步推理相关
+        self._frame_queue: queue.Queue = queue.Queue(maxsize=1)
+        self._latest_results: List[Dict] = []
+        self._result_lock = threading.Lock()
+        self._infer_thread: threading.Thread | None = None
+        self._frame_counter = 0
+        self._async_running = False
+
+    def start_async(self):
+        """启动异步推理线程。"""
+        if self._infer_thread is not None and self._infer_thread.is_alive():
+            return
+        self._async_running = True
+        self._infer_thread = threading.Thread(target=self._infer_loop, daemon=True)
+        self._infer_thread.start()
+        logger.info("异步推理线程已启动")
+
+    def stop_async(self):
+        """停止异步推理线程。"""
+        self._async_running = False
+        if self._infer_thread is not None:
+            try:
+                self._frame_queue.put_nowait(None)
+            except queue.Full:
+                pass
+            self._infer_thread.join(timeout=3)
+            self._infer_thread = None
+            logger.info("异步推理线程已停止")
+
+    def submit_frame(self, frame: np.ndarray):
+        """提交一帧给推理线程（非阻塞，丢弃旧帧）。"""
+        if not self._async_running:
+            return
+        self._frame_counter += 1
+        if self._frame_counter % self.inference_interval != 0:
+            return
+        # 清空队列只保留最新帧，避免堆积
+        try:
+            while True:
+                self._frame_queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self._frame_queue.put_nowait(frame.copy())
+        except queue.Full:
+            pass
+
+    def get_latest_results(self) -> List[Dict]:
+        """获取最新推理结果（线程安全）。"""
+        with self._result_lock:
+            return list(self._latest_results)
+
+    def _infer_loop(self):
+        """后台推理循环。"""
+        while self._async_running:
+            try:
+                frame = self._frame_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if frame is None:
+                break
+            try:
+                results = self.detect(frame)
+                with self._result_lock:
+                    self._latest_results = results
+            except Exception as e:
+                logger.error(f"异步推理异常: {e}")
+
+    def detect_sync(self, frame: np.ndarray) -> List[Dict]:
+        """同步检测接口（兼容旧代码）。"""
+        return self.detect(frame)
 
     def _load_model(self):
         if not self.model_path.exists():

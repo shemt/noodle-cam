@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
         "vote_frames": 5,
         "vote_threshold": 4,
         "debounce_seconds": 2.0,
+        "inference_interval": 1,
     },
     "audio": {
         "volume": 80,
