@@ -203,8 +203,7 @@ MONITOR_PAGE = """
             <div class="section">
                 <h2>实时画面</h2>
                 <div class="video-wrap" id="videoWrap">
-                    <img id="videoFeed" src="/video_feed?t=" + Date.now() alt="实时视频流"
-                         onerror="setTimeout(()=>{this.src='/video_feed?t='+Date.now();},1000)">
+                    <img id="videoFeed" src="/video_feed?t=init" alt="实时视频流">
                     <canvas id="roiCanvas" width="{{ width }}" height="{{ height }}"></canvas>
                     <div class="overlay-label">模式: <span id="modeLabel">客户检测区</span></div>
                 </div>
@@ -389,6 +388,65 @@ MONITOR_PAGE = """
     window.addEventListener('resize', fitCanvas);
     fitCanvas();
     redraw();
+
+    // ========== Video Feed Robust Reconnection ==========
+    const videoImg = document.getElementById('videoFeed');
+    let vfErrorCount = 0;
+    let vfRetryTimer = null;
+    let vfHealthTimer = null;
+    const VF_MAX_RETRY = 10;
+    const VF_RETRY_BASE_MS = 800;
+
+    function vfSetSrc() {
+        const ts = Date.now();
+        videoImg.src = '/video_feed?t=' + ts;
+    }
+
+    function vfScheduleRetry() {
+        if (vfRetryTimer) clearTimeout(vfRetryTimer);
+        if (vfErrorCount >= VF_MAX_RETRY) {
+            console.warn('视频流重试次数耗尽，停止自动重连');
+            return;
+        }
+        const delay = Math.min(VF_RETRY_BASE_MS * Math.pow(1.5, vfErrorCount), 8000);
+        vfErrorCount++;
+        vfRetryTimer = setTimeout(() => {
+            console.log('视频流重试 #' + vfErrorCount + ' 延迟 ' + delay + 'ms');
+            vfSetSrc();
+        }, delay);
+    }
+
+    videoImg.addEventListener('error', () => {
+        console.error('videoFeed error event');
+        vfScheduleRetry();
+    });
+
+    videoImg.addEventListener('load', () => {
+        if (vfErrorCount > 0) {
+            console.log('视频流恢复');
+            vfErrorCount = 0;
+        }
+    });
+
+    // 页面可见性变化时：隐藏暂停、显示刷新
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            console.log('页面重新可见，刷新视频流');
+            vfErrorCount = 0;
+            if (vfRetryTimer) clearTimeout(vfRetryTimer);
+            vfSetSrc();
+        }
+    });
+
+    // 健康检查：如果图片完成加载但宽度为0，说明加载失败
+    function vfHealthCheck() {
+        if (document.visibilityState !== 'visible') return;
+        if (videoImg.complete && videoImg.naturalWidth === 0) {
+            console.warn('健康检查发现视频流已中断');
+            vfScheduleRetry();
+        }
+    }
+    vfHealthTimer = setInterval(vfHealthCheck, 3000);
 
     // ========== Status polling ==========
     let lastRecordEnabled = null;
@@ -581,6 +639,14 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
     def recordings_page():
         return render_template_string(RECORDINGS_PAGE)
 
+    # 1x1 透明 GIF，作为无帧时的 keep-alive 占位
+    _BLANK_GIF = bytes([
+        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00,
+        0x80, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x2C,
+        0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02,
+        0x02, 0x44, 0x01, 0x00, 0x3B,
+    ])
+
     @app.route("/video_feed")
     def video_feed():
         if latest_jpeg is None:
@@ -594,17 +660,27 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
                     else:
-                        time.sleep(0.05)
-                    # 降低帧率到 ~5fps，减少连接压力
-                    time.sleep(0.15)
-            except (GeneratorExit, BrokenPipeError, ConnectionResetError):
+                        # 无帧时发送 1x1 透明 GIF 保持连接存活
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/gif\r\n\r\n'
+                               + create_app._BLANK_GIF + b'\r\n')
+                        time.sleep(0.1)
+                    time.sleep(0.18)  # ~5 fps
+            except (GeneratorExit, BrokenPipeError, ConnectionResetError, OSError):
                 pass  # 客户端断开，优雅退出
+            finally:
+                logger.debug("video_feed 生成器退出")
 
-        resp = Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-        resp.headers['Connection'] = 'close'
+        resp = Response(
+            generate(),
+            mimetype='multipart/x-mixed-replace; boundary=frame',
+            direct_passthrough=False,
+        )
+        # MJPEG 流需要持久连接，不能设置 Connection: close
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
+        resp.headers['X-Accel-Buffering'] = 'no'  # 禁用 Nginx 等代理缓冲
         return resp
 
     @app.route("/api/status")
