@@ -170,16 +170,30 @@ class NoodleCamApp:
                 cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
                 draw.text((bx1 + 4, by1 + 2), f"碗位#{rid}", fill=(255, 165, 0), font=font)
 
-        # 画设备名称和时间标记
+        # 画设备名称和时间标记（右上角，暗灰底色）
         from datetime import datetime
         device_name = self.config.get("device_name", "NoodleCam")
         time_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # 设备名称 - 左上角
-        draw.text((10, 10), device_name, fill=(255, 255, 255), font=font)
-        # 时间 - 右上角
+
+        # 计算文字尺寸
+        name_bbox = draw.textbbox((0, 0), device_name, font=font)
+        name_w, name_h = name_bbox[2] - name_bbox[0], name_bbox[3] - name_bbox[1]
         time_bbox = draw.textbbox((0, 0), time_text, font=font)
-        time_w = time_bbox[2] - time_bbox[0]
-        draw.text((w - time_w - 10, 10), time_text, fill=(255, 255, 255), font=font)
+        time_w, time_h = time_bbox[2] - time_bbox[0], time_bbox[3] - time_bbox[1]
+
+        max_w = max(name_w, time_w)
+        pad = 6
+        bg_x1 = w - max_w - 10 - pad
+        bg_y1 = 8
+        bg_x2 = w - 4
+        bg_y2 = bg_y1 + name_h + time_h + pad * 3
+
+        # 暗灰底色背景
+        draw.rectangle([bg_x1, bg_y1, bg_x2, bg_y2], fill=(64, 64, 64))
+        # 设备名称
+        draw.text((w - max_w - 10, bg_y1 + pad), device_name, fill=(255, 255, 255), font=font)
+        # 时间
+        draw.text((w - max_w - 10, bg_y1 + pad * 2 + name_h), time_text, fill=(200, 200, 200), font=font)
 
         # 画碗状态信息
         any_bowl = self._any_bowl_present()
