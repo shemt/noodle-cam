@@ -34,6 +34,8 @@ CONFIG_PAGE = """
         .success { color: green; }
         .error { color: red; }
         #msg { margin-top: 10px; font-weight: bold; }
+        h3 { color: #555; border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 20px; }
+        .hint { font-size: 11px; color: #888; font-weight: normal; margin-left: 4px; }
     </style>
 </head>
 <body>
@@ -41,32 +43,102 @@ CONFIG_PAGE = """
     <h1>NoodleCam 参数配置</h1>
     <div class="container">
         <div class="panel">
-            <h2>参数微调</h2>
-            <label>YOLO 置信度阈值</label>
-            <input type="number" id="confidence" step="0.05" min="0" max="1" value="{{ confidence }}">
-            <label>多帧投票 N</label>
-            <input type="number" id="vote_frames" value="{{ vote_frames }}">
-            <label>投票通过 M</label>
-            <input type="number" id="vote_threshold" value="{{ vote_threshold }}">
-            <label>防抖时间（秒）</label>
-            <input type="number" id="debounce" step="0.1" value="{{ debounce }}">
+            <h2>配置项</h2>
 
-            <h2 style="margin-top:20px;">语音播报文字</h2>
-            <label>客户靠近</label>
+            <h3>摄像头</h3>
+            <label>设备索引 <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="cam_index" value="{{ camera_index }}">
+            <label>宽度 <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="cam_width" value="{{ camera_width }}">
+            <label>高度 <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="cam_height" value="{{ camera_height }}">
+            <label>亮度</label>
+            <input type="number" id="cam_brightness" step="1" value="{{ camera_brightness }}">
+            <label>对比度</label>
+            <input type="number" id="cam_contrast" step="0.1" value="{{ camera_contrast }}">
+            <label>饱和度</label>
+            <input type="number" id="cam_saturation" step="0.1" value="{{ camera_saturation }}">
+            <label>Gamma</label>
+            <input type="number" id="cam_gamma" step="0.05" value="{{ camera_gamma }}">
+
+            <h3>视觉检测</h3>
+            <label>模型路径 <span class="hint">(需重启生效)</span></label>
+            <input type="text" id="vision_model_path" value="{{ vision_model_path }}">
+            <label>置信度阈值</label>
+            <input type="number" id="vision_confidence" step="0.05" min="0" max="1" value="{{ vision_confidence }}">
+            <label>推理间隔帧数 <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="vision_inference_interval" value="{{ vision_inference_interval }}">
+            <label>多帧投票 N</label>
+            <input type="number" id="vision_vote_frames" value="{{ vision_vote_frames }}">
+            <label>投票通过 M</label>
+            <input type="number" id="vision_vote_threshold" value="{{ vision_vote_threshold }}">
+            <label>防抖时间（秒）</label>
+            <input type="number" id="vision_debounce" step="0.1" value="{{ vision_debounce }}">
+
+            <h3>音频</h3>
+            <label>音量 (0-100)</label>
+            <input type="number" id="audio_volume" min="0" max="100" value="{{ audio_volume }}">
+            <label>语音角色 <span class="hint">(需重启生效)</span></label>
+            <input type="text" id="audio_voice" value="{{ audio_voice }}">
+            <label>语速</label>
+            <input type="text" id="audio_rate" value="{{ audio_rate }}">
+            <label>音频缓存目录 <span class="hint">(需重启生效)</span></label>
+            <input type="text" id="audio_dir" value="{{ audio_dir }}">
+            <label>客户靠近提示语</label>
             <input type="text" id="msg_customer" value="{{ msg_customer }}">
-            <label>放碗检测</label>
+            <label>放碗检测提示语</label>
             <input type="text" id="msg_bowl_placed" value="{{ msg_bowl_placed }}">
-            <label>餐品就绪</label>
+            <label>餐品就绪提示语</label>
             <input type="text" id="msg_meal_ready" value="{{ msg_meal_ready }}">
-            <label>取碗完成</label>
+            <label>取碗完成提示语</label>
             <input type="text" id="msg_bowl_removed" value="{{ msg_bowl_removed }}">
 
-            <h2 style="margin-top:20px;">模式切换</h2>
-            <label>工作模式</label>
-            <select id="llm_enabled">
-                <option value="false" {{ 'selected' if not llm_enabled else '' }}>本地模式</option>
-                <option value="true" {{ 'selected' if llm_enabled else '' }}>LLM 备用模式</option>
+            <h3>后端</h3>
+            <label>URL</label>
+            <input type="text" id="backend_url" value="{{ backend_url }}">
+            <label>心跳间隔（秒）</label>
+            <input type="number" id="backend_heartbeat" value="{{ backend_heartbeat }}">
+
+            <h3>视频</h3>
+            <label>RTSP 推流 <span class="hint">(需重启生效)</span></label>
+            <select id="video_rtsp_enabled">
+                <option value="true" {{ 'selected' if video_rtsp_enabled else '' }}>启用</option>
+                <option value="false" {{ 'selected' if not video_rtsp_enabled else '' }}>禁用</option>
             </select>
+            <label>RTSP FPS <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="video_rtsp_fps" value="{{ video_rtsp_fps }}">
+            <label>RTSP 端口 <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="video_rtsp_port" value="{{ video_rtsp_port }}">
+            <label>RTSP 码率</label>
+            <input type="number" id="video_rtsp_bitrate" value="{{ video_rtsp_bitrate }}">
+            <label>录像开关</label>
+            <select id="video_record_enabled">
+                <option value="true" {{ 'selected' if video_record_enabled else '' }}>启用</option>
+                <option value="false" {{ 'selected' if not video_record_enabled else '' }}>禁用</option>
+            </select>
+            <label>录像目录 <span class="hint">(需重启生效)</span></label>
+            <input type="text" id="video_record_dir" value="{{ video_record_dir }}">
+            <label>最大存储空间 (GB) <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="video_max_storage" value="{{ video_max_storage }}">
+
+            <h3>Web 服务</h3>
+            <label>绑定地址 <span class="hint">(需重启生效)</span></label>
+            <input type="text" id="web_host" value="{{ web_host }}">
+            <label>端口 <span class="hint">(需重启生效)</span></label>
+            <input type="number" id="web_port" value="{{ web_port }}">
+
+            <h3>LLM</h3>
+            <label>启用 LLM 备用</label>
+            <select id="llm_enabled">
+                <option value="false" {{ 'selected' if not llm_enabled else '' }}>禁用</option>
+                <option value="true" {{ 'selected' if llm_enabled else '' }}>启用</option>
+            </select>
+            <label>API Key</label>
+            <input type="text" id="llm_api_key" value="{{ llm_api_key }}">
+            <label>Fallback 阈值</label>
+            <input type="number" id="llm_fallback" step="0.05" min="0" max="1" value="{{ llm_fallback }}">
+            <label>模型</label>
+            <input type="text" id="llm_model" value="{{ llm_model }}">
 
             <div style="margin-top:20px;">
                 <button class="btn-primary" onclick="saveConfig()">保存配置</button>
@@ -76,38 +148,77 @@ CONFIG_PAGE = """
 
         <div class="panel">
             <h2>配置 JSON 预览</h2>
-            <textarea id="configPreview" rows="20" readonly style="font-family:monospace;font-size:12px;"></textarea>
+            <textarea id="configPreview" rows="30" readonly style="font-family:monospace;font-size:12px;"></textarea>
         </div>
     </div>
 
     <script>
+    function getValue(id, type) {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        if (type === 'bool') return el.value === 'true';
+        if (type === 'int') return parseInt(el.value);
+        if (type === 'float') return parseFloat(el.value);
+        return el.value;
+    }
     function buildPayload() {
         return {
-            confidence: parseFloat(document.getElementById('confidence').value),
-            vote_frames: parseInt(document.getElementById('vote_frames').value),
-            vote_threshold: parseInt(document.getElementById('vote_threshold').value),
-            debounce: parseFloat(document.getElementById('debounce').value),
-            llm_enabled: document.getElementById('llm_enabled').value === 'true',
-            messages: {
-                customer_approach: document.getElementById('msg_customer').value,
-                bowl_placed: document.getElementById('msg_bowl_placed').value,
-                meal_ready: document.getElementById('msg_meal_ready').value,
-                bowl_removed: document.getElementById('msg_bowl_removed').value
+            camera: {
+                index: getValue('cam_index', 'int'),
+                width: getValue('cam_width', 'int'),
+                height: getValue('cam_height', 'int'),
+                brightness: getValue('cam_brightness', 'int'),
+                contrast: getValue('cam_contrast', 'float'),
+                saturation: getValue('cam_saturation', 'float'),
+                gamma: getValue('cam_gamma', 'float'),
+            },
+            vision: {
+                model_path: getValue('vision_model_path'),
+                confidence_threshold: getValue('vision_confidence', 'float'),
+                inference_interval: getValue('vision_inference_interval', 'int'),
+                vote_frames: getValue('vision_vote_frames', 'int'),
+                vote_threshold: getValue('vision_vote_threshold', 'int'),
+                debounce_seconds: getValue('vision_debounce', 'float'),
+            },
+            audio: {
+                volume: getValue('audio_volume', 'int'),
+                voice: getValue('audio_voice'),
+                rate: getValue('audio_rate'),
+                audio_dir: getValue('audio_dir'),
+                messages: {
+                    customer_approach: getValue('msg_customer'),
+                    bowl_placed: getValue('msg_bowl_placed'),
+                    meal_ready: getValue('msg_meal_ready'),
+                    bowl_removed: getValue('msg_bowl_removed'),
+                }
+            },
+            backend: {
+                url: getValue('backend_url'),
+                heartbeat_interval: getValue('backend_heartbeat', 'int'),
+            },
+            video: {
+                rtsp_enabled: getValue('video_rtsp_enabled', 'bool'),
+                rtsp_fps: getValue('video_rtsp_fps', 'int'),
+                rtsp_port: getValue('video_rtsp_port', 'int'),
+                rtsp_bitrate: getValue('video_rtsp_bitrate', 'int'),
+                record_enabled: getValue('video_record_enabled', 'bool'),
+                record_dir: getValue('video_record_dir'),
+                max_storage_gb: getValue('video_max_storage', 'int'),
+            },
+            web: {
+                host: getValue('web_host'),
+                port: getValue('web_port', 'int'),
+            },
+            llm: {
+                enabled: getValue('llm_enabled', 'bool'),
+                api_key: getValue('llm_api_key'),
+                fallback_threshold: getValue('llm_fallback', 'float'),
+                model: getValue('llm_model'),
             }
         };
     }
     function updatePreview() {
-        const data = buildPayload();
-        document.getElementById('configPreview').value = JSON.stringify({
-            vision: {
-                confidence_threshold: data.confidence,
-                vote_frames: data.vote_frames,
-                vote_threshold: data.vote_threshold,
-                debounce_seconds: data.debounce
-            },
-            audio: { messages: data.messages },
-            llm: { enabled: data.llm_enabled }
-        }, null, 2);
+        document.getElementById('configPreview').value = JSON.stringify(buildPayload(), null, 2);
     }
     function saveConfig() {
         const data = buildPayload();
@@ -125,13 +236,11 @@ CONFIG_PAGE = """
             msg.className = 'error';
         });
     }
-    fetch('/api/config').then(r => r.json()).then(cfg => {
-        updatePreview();
-    });
     document.querySelectorAll('input, select').forEach(el => {
         el.addEventListener('change', updatePreview);
         el.addEventListener('input', updatePreview);
     });
+    updatePreview();
     </script>
 </body>
 </html>
@@ -159,6 +268,8 @@ MONITOR_PAGE = """
         .stat-card { background: #f8f9fa; padding: 10px; border-radius: 6px; text-align: center; border-left: 4px solid #007bff; }
         .stat-card.recording-on { border-left-color: #28a745; }
         .stat-card.recording-off { border-left-color: #dc3545; }
+        .stat-card.bowl-yes { border-left-color: #28a745; }
+        .stat-card.bowl-no { border-left-color: #6c757d; }
         .stat-value { font-size: 20px; font-weight: bold; color: #333; }
         .stat-label { font-size: 11px; color: #666; margin-top: 2px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
@@ -168,15 +279,12 @@ MONITOR_PAGE = """
         .btn-primary { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
         .btn-danger { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
         .btn-secondary { background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-success { background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-warning { background: #fd7e14; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
         .mode-active { background: #28a745 !important; color: white !important; border-color: #28a745 !important; }
         .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
         .badge-person { background: #d4edda; color: #155724; }
         .badge-bowl { background: #fff3cd; color: #856404; }
-        .video-wrap {
-            position: relative; display: inline-block; border: 1px solid #ccc;
-            background: #000; overflow: hidden; width: 100%; max-width: {{ width }}px;
-        }
-        .video-wrap img { display: block; width: 100%; height: auto; }
         .video-wrap canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             cursor: crosshair; z-index: 2;
@@ -227,8 +335,12 @@ MONITOR_PAGE = """
                 <h2>系统概览</h2>
                 <div class="stat-grid">
                     <div class="stat-card">
-                        <div class="stat-value" id="stateVal">--</div>
-                        <div class="stat-label">当前状态</div>
+                        <div class="stat-value" id="customerVal">--</div>
+                        <div class="stat-label">客户检测</div>
+                    </div>
+                    <div class="stat-card" id="bowlCard">
+                        <div class="stat-value" id="bowlVal">--</div>
+                        <div class="stat-label">碗状态</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value" id="fpsVal">--</div>
@@ -237,10 +349,6 @@ MONITOR_PAGE = """
                     <div class="stat-card" id="recCard">
                         <div class="stat-value" id="recVal">--</div>
                         <div class="stat-label">录像</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="detVal">--</div>
-                        <div class="stat-label">检测目标</div>
                     </div>
                 </div>
                 <div style="margin-top:12px;">
@@ -251,10 +359,9 @@ MONITOR_PAGE = """
             <div class="section">
                 <h2>调试模拟</h2>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                    <button class="btn-secondary" onclick="simulate('customer_approach')">客户靠近</button>
-                    <button class="btn-secondary" onclick="simulate('bowl_placed')">放碗</button>
-                    <button class="btn-secondary" onclick="simulate('meal_ready')">餐品就绪</button>
-                    <button class="btn-secondary" onclick="simulate('bowl_removed')">取碗</button>
+                    <button class="btn-success" onclick="simulateBowl(true)">仿真碗存在</button>
+                    <button class="btn-warning" onclick="simulateBowl(false)">仿真碗不存在</button>
+                    <button class="btn-secondary" onclick="simulateBowl(null)">清除仿真</button>
                 </div>
                 <div id="simMsg" style="margin-top:6px;font-size:12px;min-height:18px;"></div>
             </div>
@@ -468,9 +575,14 @@ MONITOR_PAGE = """
         } catch (e) { console.error('状态获取失败:', e); }
     }
     function updateUI(data) {
-        document.getElementById('stateVal').textContent = data.state || 'UNKNOWN';
+        document.getElementById('customerVal').textContent = data.customer_detected ? '检测到' : '未检测';
+        document.getElementById('customerVal').style.color = data.customer_detected ? '#28a745' : '#666';
+        const anyBowl = data.any_bowl_present;
+        const bowlSim = data.bowl_simulated;
+        document.getElementById('bowlVal').textContent = anyBowl ? '有碗' : '无碗';
+        if (bowlSim) document.getElementById('bowlVal').textContent += ' [仿真]';
+        document.getElementById('bowlCard').className = 'stat-card ' + (anyBowl ? 'bowl-yes' : 'bowl-no');
         document.getElementById('fpsVal').textContent = data.fps || 0;
-        document.getElementById('detVal').textContent = (data.detections || []).length;
         const recText = data.recording ? '录制中' : (data.record_enabled ? '待命' : '已关闭');
         document.getElementById('recVal').textContent = recText;
         document.getElementById('recCard').className = 'stat-card ' + (data.recording ? 'recording-on' : (data.record_enabled ? '' : 'recording-off'));
@@ -504,12 +616,12 @@ MONITOR_PAGE = """
             if (data.success) { lastRecordEnabled = newEnabled; fetchStatus(); }
         } catch (e) { alert('切换失败: ' + e); }
     }
-    async function simulate(event) {
+    async function simulateBowl(present) {
         try {
             const res = await fetch('/api/simulate', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({event})
+                body: JSON.stringify({bowl_present: present})
             });
             const data = await res.json();
             const el = document.getElementById('simMsg');
@@ -541,10 +653,14 @@ RECORDINGS_PAGE = """
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background: #f8f9fa; }
         .btn-primary { background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-success { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
         .btn-danger { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
         .empty { color: #999; padding: 30px; text-align: center; }
         .size { color: #666; font-family: monospace; }
         .mtime { color: #666; font-size: 13px; }
+        .video-row { background: #f8f9fa; }
+        .video-row td { padding: 0; border: none; }
+        video { width: 100%; max-height: 400px; background: #000; }
     </style>
 </head>
 <body>
@@ -557,6 +673,7 @@ RECORDINGS_PAGE = """
     </div>
 
     <script>
+    let expandedFile = null;
     async function loadFiles() {
         try {
             const res = await fetch('/api/recordings');
@@ -576,6 +693,24 @@ RECORDINGS_PAGE = """
         const d = new Date(ts * 1000);
         return d.toLocaleString();
     }
+    function togglePlay(name) {
+        const row = document.getElementById('video-row-' + name);
+        if (!row) return;
+        if (expandedFile === name) {
+            row.style.display = 'none';
+            expandedFile = null;
+        } else {
+            // hide previous
+            if (expandedFile) {
+                const prev = document.getElementById('video-row-' + expandedFile);
+                if (prev) prev.style.display = 'none';
+            }
+            const video = row.querySelector('video');
+            if (video) video.src = '/recordings/' + encodeURIComponent(name);
+            row.style.display = 'table-row';
+            expandedFile = name;
+        }
+    }
     function renderFiles(files) {
         const wrap = document.getElementById('fileListWrap');
         if (files.length === 0) {
@@ -584,13 +719,20 @@ RECORDINGS_PAGE = """
         }
         let html = '<table><tr><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr>';
         files.forEach(f => {
+            const encName = encodeURIComponent(f.name).replace(/'/g, "%27");
             html += `<tr>
                 <td>${f.name}</td>
                 <td class="size">${formatBytes(f.size)}</td>
                 <td class="mtime">${formatTime(f.mtime)}</td>
                 <td>
-                    <a class="btn-primary" href="/recordings/${encodeURIComponent(f.name)}" download>下载</a>
-                    <button class="btn-danger" onclick="deleteFile('${f.name}')">删除</button>
+                    <button class="btn-success" onclick="togglePlay('${encName}')">播放</button>
+                    <a class="btn-primary" href="/recordings/${encName}?download=1" download>下载</a>
+                    <button class="btn-danger" onclick="deleteFile('${encName}')">删除</button>
+                </td>
+            </tr>`;
+            html += `<tr class="video-row" id="video-row-${encName}" style="display:none;">
+                <td colspan="4">
+                    <video controls preload="none"></video>
                 </td>
             </tr>`;
         });
@@ -633,7 +775,7 @@ def _validate_bowl_rois(val):
     return val
 
 
-def create_app(config_path: str = "config.json", app_state=None, recorder=None, config=None, latest_jpeg=None, state_machine=None):
+def create_app(config_path: str = "config.json", app_state=None, recorder=None, config=None, latest_jpeg=None, app_instance=None):
     app = Flask(__name__)
     if config is None:
         config = Config(config_path)
@@ -643,15 +785,42 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
         msgs = config.get("audio.messages", {})
         return render_template_string(
             CONFIG_PAGE,
-            confidence=config.get("vision.confidence_threshold", 0.5),
-            vote_frames=config.get("vision.vote_frames", 5),
-            vote_threshold=config.get("vision.vote_threshold", 4),
-            debounce=config.get("vision.debounce_seconds", 2.0),
-            llm_enabled=config.get("llm.enabled", False),
+            camera_index=config.get("camera.index", 0),
+            camera_width=config.get("camera.width", 1280),
+            camera_height=config.get("camera.height", 720),
+            camera_brightness=config.get("camera.brightness", 30),
+            camera_contrast=config.get("camera.contrast", 1.2),
+            camera_saturation=config.get("camera.saturation", 1.2),
+            camera_gamma=config.get("camera.gamma", 0.85),
+            vision_model_path=config.get("vision.model_path", "models/yolov5s.onnx"),
+            vision_confidence=config.get("vision.confidence_threshold", 0.5),
+            vision_inference_interval=config.get("vision.inference_interval", 1),
+            vision_vote_frames=config.get("vision.vote_frames", 5),
+            vision_vote_threshold=config.get("vision.vote_threshold", 4),
+            vision_debounce=config.get("vision.debounce_seconds", 2.0),
+            audio_volume=config.get("audio.volume", 80),
+            audio_voice=config.get("audio.voice", "zh-CN-XiaoxiaoNeural"),
+            audio_rate=config.get("audio.rate", "-15%"),
+            audio_dir=config.get("audio.audio_dir", "audio_clips"),
             msg_customer=msgs.get("customer_approach", "请拿碗放在碗托上"),
             msg_bowl_placed=msgs.get("bowl_placed", "已检测到放碗"),
             msg_meal_ready=msgs.get("meal_ready", "您的餐已准备好，请取餐"),
             msg_bowl_removed=msgs.get("bowl_removed", "碗已取走，请慢用"),
+            backend_url=config.get("backend.url", "http://localhost:5000"),
+            backend_heartbeat=config.get("backend.heartbeat_interval", 86400),
+            video_rtsp_enabled=config.get("video.rtsp_enabled", True),
+            video_rtsp_fps=config.get("video.rtsp_fps", 15),
+            video_rtsp_port=config.get("video.rtsp_port", 8554),
+            video_rtsp_bitrate=config.get("video.rtsp_bitrate", 500),
+            video_record_enabled=config.get("video.record_enabled", True),
+            video_record_dir=config.get("video.record_dir", "recordings"),
+            video_max_storage=config.get("video.max_storage_gb", 2),
+            web_host=config.get("web.host", "0.0.0.0"),
+            web_port=config.get("web.port", 8090),
+            llm_enabled=config.get("llm.enabled", False),
+            llm_api_key=config.get("llm.api_key", ""),
+            llm_fallback=config.get("llm.fallback_threshold", 0.3),
+            llm_model=config.get("llm.model", "qwen-vl-plus"),
         )
 
     @app.route("/monitor")
@@ -718,6 +887,7 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
         with app_state.get("_lock", type("DummyLock", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})()):
             data = {k: v for k, v in app_state.items() if not k.startswith("_")}
             data["detections"] = copy.deepcopy(data.get("detections", []))
+            data["bowl_simulated"] = app_instance.simulate_bowl_override is not None if app_instance else False
         return jsonify(data)
 
     @app.route("/api/recording", methods=["POST"])
@@ -739,25 +909,24 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
 
     @app.route("/api/simulate", methods=["POST"])
     def api_simulate():
-        if state_machine is None:
-            return jsonify({"success": False, "error": "state machine not available"}), 503
+        if app_instance is None:
+            return jsonify({"success": False, "error": "app instance not available"}), 503
         try:
             data = request.get_json(force=True)
-            event = data.get("event")
-            if event == "customer_approach":
-                state_machine.trigger("customer_approach")
-            elif event == "bowl_placed":
-                state_machine.context["event"] = {"bowl_id": 1, "event": "placed"}
-                state_machine.trigger("bowl_placed")
-            elif event == "meal_ready":
-                state_machine.trigger("meal_ready")
-            elif event == "bowl_removed":
-                state_machine.context["event"] = {"bowl_id": 1, "event": "removed"}
-                state_machine.trigger("bowl_removed")
+            bowl_present = data.get("bowl_present")
+            if bowl_present is None:
+                app_instance.simulate_bowl_override = None
+                msg = "已清除仿真"
+            elif bowl_present is True:
+                app_instance.simulate_bowl_override = True
+                msg = "已设置仿真：碗存在"
+            elif bowl_present is False:
+                app_instance.simulate_bowl_override = False
+                msg = "已设置仿真：碗不存在"
             else:
-                return jsonify({"success": False, "error": f"未知事件: {event}"}), 400
-            logger.info(f"模拟事件触发: {event}")
-            return jsonify({"success": True, "message": f"已触发 {event}"})
+                return jsonify({"success": False, "error": f"无效值: {bowl_present}"}), 400
+            logger.info(f"仿真设置: bowl_present={bowl_present}")
+            return jsonify({"success": True, "message": msg})
         except Exception as e:
             logger.error(f"模拟事件失败: {e}")
             return jsonify({"success": False, "error": str(e)}), 400
@@ -787,12 +956,52 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
             return jsonify({"error": "invalid path"}), 403
         if not safe_path.exists():
             return jsonify({"error": "file not found"}), 404
-        return send_from_directory(str(recorder.record_dir), name, as_attachment=True)
+        as_attachment = request.args.get("download", "0") == "1"
+        return send_from_directory(str(recorder.record_dir.resolve()), name, as_attachment=as_attachment)
 
     @app.route("/api/config", methods=["POST"])
     def update_config():
         try:
             data = request.get_json(force=True)
+            # 处理嵌套对象形式的完整配置
+            if "camera" in data and isinstance(data["camera"], dict):
+                cam = data["camera"]
+                for k, v in cam.items():
+                    config.set(f"camera.{k}", v)
+            if "vision" in data and isinstance(data["vision"], dict):
+                vis = data["vision"]
+                for k, v in vis.items():
+                    config.set(f"vision.{k}", v)
+            if "audio" in data and isinstance(data["audio"], dict):
+                aud = data["audio"]
+                for k, v in aud.items():
+                    if k == "messages" and isinstance(v, dict):
+                        config.set("audio.messages", v)
+                    else:
+                        config.set(f"audio.{k}", v)
+            if "backend" in data and isinstance(data["backend"], dict):
+                be = data["backend"]
+                for k, v in be.items():
+                    config.set(f"backend.{k}", v)
+            if "video" in data and isinstance(data["video"], dict):
+                vid = data["video"]
+                for k, v in vid.items():
+                    config.set(f"video.{k}", v)
+                # 实时更新录像开关
+                if "record_enabled" in vid and recorder is not None:
+                    recorder.enabled = bool(vid["record_enabled"])
+                    if not recorder.enabled and recorder.is_recording():
+                        recorder.stop()
+            if "web" in data and isinstance(data["web"], dict):
+                web = data["web"]
+                for k, v in web.items():
+                    config.set(f"web.{k}", v)
+            if "llm" in data and isinstance(data["llm"], dict):
+                llm = data["llm"]
+                for k, v in llm.items():
+                    config.set(f"llm.{k}", v)
+
+            # 兼容旧版扁平格式（ROI 等）
             if "customer_roi" in data:
                 roi = _validate_customer_roi(json.loads(data["customer_roi"]))
                 config.set("vision.customer_roi", roi)
@@ -813,6 +1022,7 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
                 msgs = data["messages"]
                 if isinstance(msgs, dict):
                     config.set("audio.messages", msgs)
+
             config.save()
             logger.info("配置已更新并保存")
             return jsonify({"success": True, "message": "配置保存成功"})

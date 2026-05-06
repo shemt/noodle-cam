@@ -4,7 +4,15 @@ from pathlib import Path
 from typing import Dict, Any
 
 DEFAULT_CONFIG = {
-    "camera": {"index": 0, "width": 1280, "height": 720},
+    "camera": {
+        "index": 0,
+        "width": 1280,
+        "height": 720,
+        "brightness": 30,
+        "contrast": 1.2,
+        "saturation": 1.2,
+        "gamma": 0.85,
+    },
     "vision": {
         "model_path": "models/yolov5s.rknn",
         "confidence_threshold": 0.5,
@@ -19,6 +27,7 @@ DEFAULT_CONFIG = {
         "volume": 80,
         "audio_dir": "audio_clips",
         "voice": "zh-CN-XiaoxiaoNeural",
+        "rate": "-15%",
         "messages": {
             "customer_approach": "请拿碗放在碗托上",
             "meal_ready": "您的餐已准备好，请取餐",

@@ -12,15 +12,39 @@ logger = logging.getLogger(__name__)
 
 
 class Camera:
-    """摄像头封装，支持自动重连"""
+    """摄像头封装，支持自动重连与图像增强（亮度/对比度/饱和度/伽马）"""
 
-    def __init__(self, index: int = 0, width: int = 1280, height: int = 720):
+    def __init__(
+        self,
+        index: int = 0,
+        width: int = 1280,
+        height: int = 720,
+        brightness: float = 0.0,
+        contrast: float = 1.0,
+        saturation: float = 1.0,
+        gamma: float = 1.0,
+    ):
         self.index = index
         self.width = width
         self.height = height
+        self.brightness = brightness
+        self.contrast = contrast
+        self.saturation = saturation
+        self.gamma = gamma
         self._cap = None
         self._reconnect_attempts = 0
         self._max_reconnect = 3
+        self._gamma_lut: Optional[np.ndarray] = None
+        self._update_gamma_lut()
+
+    def _update_gamma_lut(self):
+        if cv2 is None or self.gamma == 1.0:
+            self._gamma_lut = None
+            return
+        inv_gamma = 1.0 / self.gamma
+        self._gamma_lut = np.array(
+            [((i / 255.0) ** inv_gamma) * 255 for i in range(256)]
+        ).astype(np.uint8)
 
     def open(self) -> bool:
         if cv2 is None:
@@ -54,6 +78,28 @@ class Camera:
             self._cap = None
             return None
         self._reconnect_attempts = 0
+
+        # 图像增强处理
+        frame = self._enhance(frame)
+        return frame
+
+    def _enhance(self, frame: np.ndarray) -> np.ndarray:
+        """应用亮度/对比度/饱和度/伽马校正"""
+        # 1. 亮度 + 对比度
+        if self.contrast != 1.0 or self.brightness != 0.0:
+            frame = cv2.convertScaleAbs(frame, alpha=self.contrast, beta=self.brightness)
+
+        # 2. 伽马校正
+        if self._gamma_lut is not None:
+            frame = cv2.LUT(frame, self._gamma_lut)
+
+        # 3. 饱和度
+        if self.saturation != 1.0:
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
+            hsv[:, :, 1] *= self.saturation
+            hsv[:, :, 1] = np.clip(hsv[:, :, 1], 0, 255)
+            frame = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
         return frame
 
     def release(self):

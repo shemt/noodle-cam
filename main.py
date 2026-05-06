@@ -3,12 +3,11 @@ import logging
 import signal
 import threading
 import sys
+from typing import Optional
 
 from web.config_server import create_app
-from pathlib import Path
 
 from config.settings import Config
-from core.state_machine import StateMachine, State
 from vision.camera import Camera
 from vision.detector import YOLODetector
 from vision.customer_detector import CustomerDetector
@@ -33,7 +32,11 @@ class NoodleCamApp:
         self.camera = Camera(
             self.config.get("camera.index", 0),
             self.config.get("camera.width", 1280),
-            self.config.get("camera.height", 720)
+            self.config.get("camera.height", 720),
+            brightness=self.config.get("camera.brightness", 0.0),
+            contrast=self.config.get("camera.contrast", 1.0),
+            saturation=self.config.get("camera.saturation", 1.0),
+            gamma=self.config.get("camera.gamma", 1.0),
         )
         self.detector = YOLODetector(
             self.config.get("vision.model_path", "models/yolov5s.rknn"),
@@ -54,6 +57,7 @@ class NoodleCamApp:
             audio_dir=self.config.get("audio.audio_dir", "audio_clips"),
             messages=self.config.get("audio.messages", {}),
             voice=self.config.get("audio.voice", "zh-CN-XiaoxiaoNeural"),
+            rate=self.config.get("audio.rate", "-15%"),
         )
         cam_index = self.config.get("camera.index", 0)
         video_device = f"/dev/video{cam_index}"
@@ -78,15 +82,18 @@ class NoodleCamApp:
             bitrate=self.config.get("video.rtsp_bitrate", 500),
             port=self.config.get("video.rtsp_port", 8554),
         )
-        self.sm = StateMachine()
-        self._setup_state_handlers()
+
+        # Web 仿真开关：None 表示不覆盖，True/False 强制覆盖碗状态
+        self.simulate_bowl_override: Optional[bool] = None
         self._web_thread = None
 
         # 线程安全的运行时状态，供 Web 端读取
         self._state_lock = threading.Lock()
         self._app_state = {
             "detections": [],
-            "state": "IDLE",
+            "bowl_states": {},
+            "any_bowl_present": False,
+            "customer_detected": False,
             "recording": False,
             "record_enabled": self.recorder.enabled,
             "fps": 0.0,
@@ -97,17 +104,11 @@ class NoodleCamApp:
         self._jpeg_lock = threading.Lock()
         self._latest_jpeg: bytes = b""
 
-    def _setup_state_handlers(self):
-        self.sm.on("customer_approach", self._on_customer_approach)
-        self.sm.on("bowl_placed", self._on_bowl_placed)
-        self.sm.on("meal_ready", self._on_meal_ready)
-        self.sm.on("bowl_removed", self._on_bowl_removed)
-
     def _draw_overlay(self, frame, detections):
         import cv2
         import numpy as np
         from PIL import Image, ImageDraw, ImageFont
-        h, w = frame.shape[:2]
+        h, _ = frame.shape[:2]
 
         # 尝试加载中文字体
         font_paths = [
@@ -169,8 +170,11 @@ class NoodleCamApp:
                 cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
                 draw.text((bx1 + 4, by1 + 2), f"碗位#{rid}", fill=(255, 165, 0), font=font)
 
-        # 画状态信息
-        state_text = f"状态: {self.sm.state.name}"
+        # 画碗状态信息
+        any_bowl = self._any_bowl_present()
+        state_text = f"碗状态: {'有碗' if any_bowl else '无碗'}"
+        if self.simulate_bowl_override is not None:
+            state_text += " [仿真]"
         draw.text((10, h - 28), state_text, fill=(255, 255, 255), font=font)
 
         # PIL RGB 转回 OpenCV BGR
@@ -181,28 +185,19 @@ class NoodleCamApp:
         with self._jpeg_lock:
             return self._latest_jpeg
 
-    def _on_customer_approach(self, old, new, ctx):
+    def _handle_customer_approach(self):
         logger.info("检测到客户靠近，播放引导语音")
         self.tts.say("customer_approach")
-        self.recorder.start("order")
 
-    def _on_bowl_placed(self, old, new, ctx):
-        event = ctx.get("event")
-        logger.info(f"检测到放碗: {event}")
-        self.backend.send_bowl_status(event)
-        self.tts.say("bowl_placed")
+    def _handle_bowl_events(self, events):
+        for ev in events:
+            logger.info(f"碗位事件: {ev}")
+            self.backend.send_bowl_status(ev)
 
-    def _on_meal_ready(self, old, new, ctx):
-        logger.info("餐品制作完成，通知取餐")
-        self.tts.say("meal_ready")
-        self.recorder.stop()
-
-    def _on_bowl_removed(self, old, new, ctx):
-        event = ctx.get("event")
-        logger.info(f"碗被取走: {event}")
-        self.backend.send_bowl_status(event)
-        self.tts.say("bowl_removed")
-        self.recorder.stop()
+    def _any_bowl_present(self) -> bool:
+        if self.simulate_bowl_override is not None:
+            return self.simulate_bowl_override
+        return self.bowl_detector.any_bowl_present()
 
     def run(self):
         self.running = True
@@ -216,7 +211,7 @@ class NoodleCamApp:
             recorder=self.recorder,
             config=self.config,
             latest_jpeg=self._get_latest_jpeg,
-            state_machine=self.sm,
+            app_instance=self,
         )
         self._web_thread = threading.Thread(
             target=app.run,
@@ -235,7 +230,7 @@ class NoodleCamApp:
             return
 
         self.detector.start_async()
-        logger.info("系统启动，进入空闲状态")
+        logger.info("系统启动，进入持续检测模式")
         frame_count = 0
         last_fps_time = time.time()
         try:
@@ -260,23 +255,24 @@ class NoodleCamApp:
                 with self._jpeg_lock:
                     self._latest_jpeg = jpeg.tobytes()
 
-                if self.sm.state == State.IDLE:
-                    if self.customer_detector.update(detections):
-                        self.sm.trigger("customer_approach")
+                # 持续检测客户靠近
+                customer_triggered = self.customer_detector.update(detections)
+                if customer_triggered:
+                    self._handle_customer_approach()
 
-                elif self.sm.state in (State.GUIDING, State.COOKING):
-                    events = self.bowl_detector.update(detections)
-                    for ev in events:
-                        if ev["event"] == "placed":
-                            self.sm.trigger("bowl_placed", event=ev)
-                        elif ev["event"] == "removed":
-                            self.sm.trigger("bowl_removed", event=ev)
+                # 持续检测碗状态
+                events = self.bowl_detector.update(detections)
+                if events:
+                    self._handle_bowl_events(events)
 
-                elif self.sm.state == State.WAITING:
-                    events = self.bowl_detector.update(detections)
-                    for ev in events:
-                        if ev["event"] == "removed":
-                            self.sm.trigger("bowl_removed", event=ev)
+                # 根据 record_enabled 和碗状态控制录像
+                any_bowl = self._any_bowl_present()
+                if self.recorder.enabled and any_bowl:
+                    if not self.recorder.is_recording():
+                        self.recorder.start("auto")
+                else:
+                    if self.recorder.is_recording():
+                        self.recorder.stop()
 
                 frame_count += 1
                 now = time.time()
@@ -289,7 +285,9 @@ class NoodleCamApp:
 
                 with self._state_lock:
                     self._app_state["detections"] = [dict(d) for d in detections]
-                    self._app_state["state"] = self.sm.state.name
+                    self._app_state["bowl_states"] = self.bowl_detector.get_states()
+                    self._app_state["any_bowl_present"] = any_bowl
+                    self._app_state["customer_detected"] = customer_triggered
                     self._app_state["recording"] = self.recorder.is_recording()
                     self._app_state["record_enabled"] = self.recorder.enabled
                     self._app_state["fps"] = round(fps, 1)
@@ -323,7 +321,6 @@ def main():
     app = NoodleCamApp()
     signal.signal(signal.SIGINT, lambda s, f: app.shutdown())
     signal.signal(signal.SIGTERM, lambda s, f: app.shutdown())
-    app.backend.register_callback("/device/notify_meal_ready", lambda data: app.sm.trigger("meal_ready"))
     app.run()
 
 

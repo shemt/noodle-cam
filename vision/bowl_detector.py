@@ -68,6 +68,14 @@ class BowlDetector:
                     )
         return events
 
+    def get_states(self) -> Dict[int, bool]:
+        """返回各碗位当前确认状态的副本"""
+        return self.confirmed_states.copy()
+
+    def any_bowl_present(self) -> bool:
+        """是否有至少一个碗位确认存在碗"""
+        return any(self.confirmed_states.values())
+
     def _check_roi(self, roi: Dict, detections: List[Dict]) -> bool:
         for det in detections:
             if det.get("class") == "bowl":

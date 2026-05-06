@@ -2,7 +2,11 @@
   "camera": {
     "index": 0,
     "width": 1280,
-    "height": 720
+    "height": 720,
+    "brightness": 30,
+    "contrast": 1.2,
+    "saturation": 1.2,
+    "gamma": 0.85
   },
   "vision": {
     "model_path": "models/yolov5s.onnx",
@@ -31,12 +35,14 @@
     ],
     "vote_frames": 5,
     "vote_threshold": 4,
-    "debounce_seconds": 2
+    "debounce_seconds": 2,
+    "inference_interval": 1
   },
   "audio": {
     "volume": 80,
     "audio_dir": "audio_clips",
     "voice": "zh-CN-XiaoxiaoNeural",
+    "rate": "-15%",
     "messages": {
       "customer_approach": "请拿碗放在碗托上",
       "meal_ready": "您的餐已准备好，请取餐",
@@ -53,7 +59,7 @@
     "rtsp_fps": 15,
     "rtsp_port": 8554,
     "rtsp_bitrate": 500,
-    "record_enabled": false,
+    "record_enabled": true,
     "record_dir": "recordings",
     "max_storage_gb": 2
   },

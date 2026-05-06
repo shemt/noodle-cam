@@ -27,11 +27,13 @@ class TTSPlayer:
         audio_dir: str = "audio_clips",
         messages: Optional[Dict[str, str]] = None,
         voice: str = "zh-CN-XiaoxiaoNeural",
+        rate: str = "+0%",
     ):
         self.volume = max(0, min(100, volume))
         self.audio_dir = Path(audio_dir)
         self.messages = messages or DEFAULT_MESSAGES.copy()
         self.voice = voice
+        self.rate = rate
         self._lock = threading.Lock()
         self._pre_synthesized: Dict[str, Path] = {}
         self.audio_dir.mkdir(parents=True, exist_ok=True)
@@ -95,15 +97,15 @@ class TTSPlayer:
             loop = asyncio.new_event_loop()
             try:
                 asyncio.set_event_loop(loop)
-                communicate = edge_tts.Communicate(text, voice=self.voice)
+                communicate = edge_tts.Communicate(text, voice=self.voice, rate=self.rate)
                 loop.run_until_complete(communicate.save(tmp_mp3))
             finally:
                 loop.close()
 
-            # ffmpeg 转为 wav
+            # ffmpeg 转为 wav，保持原始采样率（edge-tts 通常为 24kHz）
             cmd = [
                 "ffmpeg", "-y", "-i", tmp_mp3,
-                "-ac", "1", "-ar", "22050",
+                "-ac", "1",
                 str(output_path)
             ]
             result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
