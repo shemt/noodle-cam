@@ -9,7 +9,7 @@
                                     ↓
                     ┌───────────────┼───────────────┐
                     ↓               ↓               ↓
-            Flask MJPEG 流     状态机驱动交互     RTSP GStreamer
+            Flask MJPEG 流     持续检测驱动      RTSP GStreamer
                     ↓               ↓               ↓
             Web 监控页面      TTS 语音播报      局域网拉流
                     ↓               ↓
@@ -25,7 +25,6 @@
 | 摄像头 | `vision/camera.py` | OpenCV VideoCapture 封装，支持自动重连 |
 | 客户检测 | `vision/customer_detector.py` | 人形框面积增长趋势判断客户靠近 |
 | 碗位检测 | `vision/bowl_detector.py` | 多帧投票 + 防抖的碗位状态检测 |
-| 状态机 | `core/state_machine.py` | IDLE → GUIDING → COOKING → WAITING |
 | TTS | `audio/tts_player.py` | edge-tts 合成 + afplay/aplay 播放 |
 | 录像 | `video/recorder.py` | ffmpeg v4l2 录制 (Linux only)，支持开关控制 |
 | RTSP | `video/streamer.py` | GStreamer appsrc RTSP 服务器 |
@@ -39,21 +38,28 @@
 
 ### 配置页面 (`/`)
 
-- YOLO 置信度阈值、多帧投票数、防抖时间
-- 语音播报文字自定义
-- LLM 备用模式切换
+- **摄像头参数**：设备索引、分辨率、亮度、对比度、饱和度、Gamma
+- **视觉检测参数**：模型路径、置信度阈值、推理间隔、多帧投票 N/M、防抖时间
+- **音频参数**：音量、语音角色、语速、音频缓存目录、4 条播报文字自定义
+- **后端参数**：URL、心跳间隔
+- **视频参数**：RTSP 开关/帧率/端口/码率、录像开关/目录/最大存储空间
+- **Web 服务参数**：绑定地址、端口
+- **LLM 参数**：启用开关、API Key、Fallback 阈值、模型
+- 所有参数保存后实时写入 `config.json`（部分参数需重启生效）
 
 ### 监控页面 (`/monitor`)
 
 - **实时视频画面**：MJPEG 流 `/video_feed`，画面上已叠加检测框（绿色=人，橙色=碗）和 ROI 区域
 - **ROI 区域设定**：在视频画面上方直接拖拽框选客户检测区和碗位检测区，所见即所得
-- **系统概览**：状态机状态、FPS、录像状态、检测目标数量
+- **系统概览**：客户检测状态、碗状态（各碗位是否有碗）、FPS、录像状态
 - **检测目标表格**：实时显示人和碗的类别、置信度、边界框
 - **录像开关**：一键开启/关闭录像，同步持久化到 `config.json`
+- **仿真控制**：可强制设置"碗存在"/"碗不存在"仿真状态，便于无实物测试
 
 ### 录像管理页面 (`/recordings`)
 
 - 录像文件列表（文件名、大小、修改时间）
+- **在线播放**：点击播放按钮直接内联观看视频
 - 下载、删除操作
 
 ## API 列表
@@ -61,29 +67,22 @@
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/video_feed` | GET | MJPEG 实时视频流（multipart/x-mixed-replace） |
-| `/api/status` | GET | 实时状态 JSON（detections / state / fps / recording / record_enabled） |
+| `/api/status` | GET | 实时状态 JSON（detections / bowl_states / any_bowl_present / customer_detected / fps / recording / record_enabled） |
 | `/api/recording` | POST | 切换录像开关 `{enabled: bool}` |
 | `/api/recordings` | GET | 录像文件列表 |
 | `/api/recordings/<name>` | DELETE | 删除指定录像 |
-| `/recordings/<name>` | GET | 下载录像文件 |
-| `/api/config` | GET/POST | 读取/保存配置 |
+| `/recordings/<name>` | GET | 播放/下载录像文件（加 `?download=1` 触发下载） |
+| `/api/config` | GET/POST | 读取/保存配置（支持完整嵌套对象格式） |
+| `/api/simulate` | POST | 设置碗仿真状态 `{bowl_present: true/false/null}` |
 
-## 状态机
+## 工作逻辑
 
-```
-IDLE ──customer_approach──→ GUIDING ──bowl_placed──→ COOKING
-  ↑                                              │
-  │                    meal_ready                │
-  │                          ↓                   │
-  └── bowl_removed ── WAITING ←──────────────────┘
-```
+系统采用**持续检测驱动**模式（无状态机）：
 
-| 状态 | 行为 |
-|------|------|
-| IDLE | 检测客户靠近 → 播放引导语音 + 开始录像 |
-| GUIDING | 检测碗放置 → 上报状态 + 播放提示 |
-| COOKING | 等待后端通知餐品就绪 → 停止录像 + 播放取餐提示 |
-| WAITING | 检测碗取走 → 上报状态 + 播放慢用提示 + 停止录像 |
+1. **客户检测**：每帧检测 ROI 内人形框面积增长趋势，触发时播放语音"请拿碗放在碗托上"
+2. **碗位检测**：每帧持续检测各碗位状态（多帧投票 + 防抖），状态变化上报后台
+3. **自动录像**：当 `record_enabled=true` 且至少一个碗位确认有碗时自动开始录像；所有碗位均无碗时自动停止
+4. **仿真测试**：Web 端可强制覆盖碗检测结果，用于无实物环境测试录像逻辑
 
 ## 本机调试（macOS/Linux）
 
@@ -160,7 +159,15 @@ nohup python main.py > app.log 2>&1 &
 
 ```json
 {
-  "camera": { "index": 0, "width": 1280, "height": 720 },
+  "camera": {
+    "index": 0,
+    "width": 1280,
+    "height": 720,
+    "brightness": 30,
+    "contrast": 1.2,
+    "saturation": 1.2,
+    "gamma": 0.85
+  },
   "vision": {
     "model_path": "models/yolov5s_rk3588.rknn",
     "confidence_threshold": 0.5,
@@ -168,12 +175,14 @@ nohup python main.py > app.log 2>&1 &
     "bowl_rois": [],
     "vote_frames": 5,
     "vote_threshold": 4,
-    "debounce_seconds": 2.0
+    "debounce_seconds": 2.0,
+    "inference_interval": 1
   },
   "audio": {
     "volume": 80,
     "audio_dir": "audio_clips",
     "voice": "zh-CN-XiaoxiaoNeural",
+    "rate": "-15%",
     "messages": {
       "customer_approach": "请拿碗放在碗托上",
       "meal_ready": "您的餐已准备好，请取餐",
@@ -191,6 +200,12 @@ nohup python main.py > app.log 2>&1 &
     "record_dir": "recordings",
     "max_storage_gb": 2
   },
+  "llm": {
+    "enabled": false,
+    "api_key": "",
+    "fallback_threshold": 0.3,
+    "model": "qwen-vl-plus"
+  },
   "web": { "host": "0.0.0.0", "port": 8090 }
 }
 ```
@@ -200,14 +215,14 @@ nohup python main.py > app.log 2>&1 &
 ### v1.0 功能清单
 
 - [x] RKNN NPU 目标检测（人/碗）+ ONNX OpenCV DNN fallback
-- [x] 状态机驱动交互流程（IDLE → GUIDING → COOKING → WAITING）
+- [x] 持续检测驱动工作模式（客户检测 + 碗位检测 + 自动录像）
 - [x] GStreamer appsrc RTSP 推流
 - [x] MJPEG Web 实时视频流（带检测框和 ROI 叠加）
-- [x] Web 监控页面：视频 + ROI 框选 + 系统状态 + 检测目标 + 录像开关
-- [x] Web 配置页面：参数微调 + 语音播报文字
-- [x] Web 录像管理页面：列表 + 下载 + 删除
+- [x] Web 监控页面：视频 + ROI 框选 + 客户检测/碗状态 + 检测目标 + 录像开关 + 碗仿真控制
+- [x] Web 配置页面：完整 config.json 所有参数在线编辑
+- [x] Web 录像管理页面：列表 + 在线播放 + 下载 + 删除
 - [x] edge-tts 语音合成，消息可配置
-- [x] 视频录像（ffmpeg v4l2）+ 2GB 循环清理
+- [x] 视频录像（ffmpeg 从主循环接收帧）+ 2GB 循环清理
 - [x] 后端 HTTP 通信 + 心跳
 - [x] 跨平台支持（Linux ARM / macOS x86）
 
@@ -230,7 +245,7 @@ nohup python main.py > app.log 2>&1 &
 │   ├── settings.py          # Config 类
 │   └── config.json          # 运行时配置（自动生成）
 ├── core/
-│   └── state_machine.py     # 状态机
+│   └── state_machine.py     # 状态机（已弃用，保留供参考）
 ├── vision/
 │   ├── camera.py            # 摄像头
 │   ├── detector.py          # YOLO 检测器
