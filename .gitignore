@@ -14,3 +14,4 @@ models/
 audio_clips/
 *.pt
 *.pth
+recordings/*.mp4

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 DEFAULT_CONFIG = {
+    "device_name": "NoodleCam-01",
     "camera": {
         "index": 0,
         "width": 1280,

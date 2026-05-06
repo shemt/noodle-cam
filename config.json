@@ -1,4 +1,5 @@
 {
+  "device_name": "NoodleCam-01",
   "camera": {
     "index": 0,
     "width": 1280,
@@ -45,8 +46,8 @@
     "rate": "-15%",
     "messages": {
       "customer_approach": "请拿碗放在碗托上",
-      "meal_ready": "您的餐已准备好，请取餐",
       "bowl_placed": "已检测到放碗",
+      "meal_ready": "您的餐已准备好，请取餐",
       "bowl_removed": "碗已取走，请慢用"
     }
   },

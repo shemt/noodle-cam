@@ -64,6 +64,9 @@ CONFIG_PAGE = """
         <div class="panel">
             <h2>配置项</h2>
 
+            <label style="margin-top:12px;">设备名称 <span class="hint">(显示在视频画面上)</span></label>
+            <input type="text" id="device_name" value="{{ device_name }}">
+
             <h3>摄像头</h3>
             <label>设备索引 <span class="hint">(需重启生效)</span></label>
             <input type="number" id="cam_index" value="{{ camera_index }}">
@@ -182,6 +185,7 @@ CONFIG_PAGE = """
     }
     function buildPayload() {
         return {
+            device_name: getValue('device_name'),
             camera: {
                 index: getValue('cam_index', 'int'),
                 width: getValue('cam_width', 'int'),
@@ -804,6 +808,7 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
         msgs = config.get("audio.messages", {})
         return render_template_string(
             CONFIG_PAGE,
+            device_name=config.get("device_name", "NoodleCam-01"),
             camera_index=config.get("camera.index", 0),
             camera_width=config.get("camera.width", 1280),
             camera_height=config.get("camera.height", 720),
@@ -982,6 +987,9 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
     def update_config():
         try:
             data = request.get_json(force=True)
+            # 处理顶层字段
+            if "device_name" in data:
+                config.set("device_name", data["device_name"])
             # 处理嵌套对象形式的完整配置
             if "camera" in data and isinstance(data["camera"], dict):
                 cam = data["camera"]

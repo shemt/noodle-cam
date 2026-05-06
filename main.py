@@ -108,7 +108,7 @@ class NoodleCamApp:
         import cv2
         import numpy as np
         from PIL import Image, ImageDraw, ImageFont
-        h, _ = frame.shape[:2]
+        h, w = frame.shape[:2]
 
         # 尝试加载中文字体
         font_paths = [
@@ -169,6 +169,17 @@ class NoodleCamApp:
                 cv2.rectangle(overlay, (bx1, by1), (bx2, by2), (255, 165, 0), 2)
                 cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
                 draw.text((bx1 + 4, by1 + 2), f"碗位#{rid}", fill=(255, 165, 0), font=font)
+
+        # 画设备名称和时间标记
+        from datetime import datetime
+        device_name = self.config.get("device_name", "NoodleCam")
+        time_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 设备名称 - 左上角
+        draw.text((10, 10), device_name, fill=(255, 255, 255), font=font)
+        # 时间 - 右上角
+        time_bbox = draw.textbbox((0, 0), time_text, font=font)
+        time_w = time_bbox[2] - time_bbox[0]
+        draw.text((w - time_w - 10, 10), time_text, fill=(255, 255, 255), font=font)
 
         # 画碗状态信息
         any_bowl = self._any_bowl_present()
