@@ -34,7 +34,26 @@ CONFIG_PAGE = """
         .success { color: green; }
         .error { color: red; }
         #msg { margin-top: 10px; font-weight: bold; }
-        h3 { color: #555; border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 20px; }
+        h3 {
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-top: 22px;
+            margin-bottom: 10px;
+            font-size: 15px;
+            font-weight: bold;
+            border-left: 5px solid;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        h3:nth-of-type(1) { background: #e3f2fd; color: #0d47a1; border-left-color: #1565c0; }
+        h3:nth-of-type(2) { background: #f3e5f5; color: #4a148c; border-left-color: #7b1fa2; }
+        h3:nth-of-type(3) { background: #e8f5e9; color: #1b5e20; border-left-color: #388e3c; }
+        h3:nth-of-type(4) { background: #fff3e0; color: #bf360c; border-left-color: #f57c00; }
+        h3:nth-of-type(5) { background: #fce4ec; color: #880e4f; border-left-color: #c2185b; }
+        h3:nth-of-type(6) { background: #e0f2f1; color: #004d40; border-left-color: #00796b; }
+        h3:nth-of-type(7) { background: #f5f5f5; color: #212121; border-left-color: #616161; }
+        /* 分类内容缩进 */
+        label { margin-left: 12px; }
+        input, select { margin-left: 12px; width: calc(100% - 12px) !important; }
         .hint { font-size: 11px; color: #888; font-weight: normal; margin-left: 4px; }
     </style>
 </head>
