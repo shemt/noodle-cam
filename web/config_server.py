@@ -743,12 +743,13 @@ RECORDINGS_PAGE = """
         let html = '<table><tr><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr>';
         files.forEach(f => {
             const encName = encodeURIComponent(f.name).replace(/'/g, "%27");
+            const isRecording = f.is_recording;
             html += `<tr>
-                <td>${f.name}</td>
+                <td>${f.name}${isRecording ? ' <span style="color:#dc3545;font-size:12px;">[录制中]</span>' : ''}</td>
                 <td class="size">${formatBytes(f.size)}</td>
                 <td class="mtime">${formatTime(f.mtime)}</td>
                 <td>
-                    <button class="btn-success" onclick="togglePlay('${encName}')">播放</button>
+                    <button class="btn-success" onclick="togglePlay('${encName}')" ${isRecording ? 'disabled title="录制中，请稍后再试"' : ''}>${isRecording ? '录制中' : '播放'}</button>
                     <a class="btn-primary" href="/recordings/${encName}?download=1" download>下载</a>
                     <button class="btn-danger" onclick="deleteFile('${encName}')">删除</button>
                 </td>
@@ -960,6 +961,9 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
         if recorder is None:
             return jsonify({"files": []})
         files = recorder.list_recordings()
+        current_file = recorder.current_file.name if recorder.current_file else None
+        for f in files:
+            f["is_recording"] = (f["name"] == current_file and recorder.is_recording())
         return jsonify({"files": files})
 
     @app.route("/api/recordings/<path:name>", methods=["DELETE"])
@@ -980,6 +984,10 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
             return jsonify({"error": "invalid path"}), 403
         if not safe_path.exists():
             return jsonify({"error": "file not found"}), 404
+        # 正在录制中的文件不允许播放/下载
+        current_file = recorder.current_file.name if recorder.current_file else None
+        if name == current_file and recorder.is_recording():
+            return jsonify({"error": "file is being recorded, please try again later"}), 423
         as_attachment = request.args.get("download", "0") == "1"
         return send_from_directory(str(recorder.record_dir.resolve()), name, as_attachment=as_attachment)
 
