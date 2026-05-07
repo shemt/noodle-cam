@@ -23,6 +23,8 @@ DEFAULT_CONFIG = {
         "vote_threshold": 4,
         "debounce_seconds": 2.0,
         "inference_interval": 1,
+        "show_customer_roi": True,
+        "show_bowl_rois": True,
     },
     "audio": {
         "volume": 80,

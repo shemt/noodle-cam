@@ -96,6 +96,16 @@ CONFIG_PAGE = """
             <input type="number" id="vision_vote_threshold" value="{{ vision_vote_threshold }}">
             <label>防抖时间（秒）</label>
             <input type="number" id="vision_debounce" step="0.1" value="{{ vision_debounce }}">
+            <label>显示客户检测区</label>
+            <select id="vision_show_customer_roi">
+                <option value="true" {{ 'selected' if vision_show_customer_roi else '' }}>显示</option>
+                <option value="false" {{ 'selected' if not vision_show_customer_roi else '' }}>隐藏</option>
+            </select>
+            <label>显示碗位检测区</label>
+            <select id="vision_show_bowl_rois">
+                <option value="true" {{ 'selected' if vision_show_bowl_rois else '' }}>显示</option>
+                <option value="false" {{ 'selected' if not vision_show_bowl_rois else '' }}>隐藏</option>
+            </select>
 
             <h3>音频</h3>
             <label>音量 (0-100)</label>
@@ -202,6 +212,8 @@ CONFIG_PAGE = """
                 vote_frames: getValue('vision_vote_frames', 'int'),
                 vote_threshold: getValue('vision_vote_threshold', 'int'),
                 debounce_seconds: getValue('vision_debounce', 'float'),
+                show_customer_roi: getValue('vision_show_customer_roi', 'bool'),
+                show_bowl_rois: getValue('vision_show_bowl_rois', 'bool'),
             },
             audio: {
                 volume: getValue('audio_volume', 'int'),
@@ -376,6 +388,10 @@ MONITOR_PAGE = """
                 </div>
                 <div style="margin-top:12px;">
                     <button id="recToggle" class="btn-primary" onclick="toggleRecording()">加载中...</button>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
+                    <button id="btnShowCustomer" class="btn-secondary" onclick="toggleRoi('customer')">加载中...</button>
+                    <button id="btnShowBowl" class="btn-secondary" onclick="toggleRoi('bowl')">加载中...</button>
                 </div>
             </div>
 
@@ -628,6 +644,34 @@ MONITOR_PAGE = """
             html += '</table>';
             wrap.innerHTML = html;
         }
+        // 更新 ROI 显示按钮
+        const btnCust = document.getElementById('btnShowCustomer');
+        const btnBowl = document.getElementById('btnShowBowl');
+        if (btnCust) {
+            const showCust = data.show_customer_roi !== false;
+            btnCust.textContent = showCust ? '隐藏客户区' : '显示客户区';
+            btnCust.className = showCust ? 'btn-secondary' : 'btn-secondary';
+            btnCust.style.opacity = showCust ? '1' : '0.6';
+        }
+        if (btnBowl) {
+            const showBowl = data.show_bowl_rois !== false;
+            btnBowl.textContent = showBowl ? '隐藏碗位区' : '显示碗位区';
+            btnBowl.className = showBowl ? 'btn-secondary' : 'btn-secondary';
+            btnBowl.style.opacity = showBowl ? '1' : '0.6';
+        }
+    }
+    async function toggleRoi(type) {
+        const key = type === 'customer' ? 'show_customer_roi' : 'show_bowl_rois';
+        const current = document.getElementById(type === 'customer' ? 'btnShowCustomer' : 'btnShowBowl').textContent.startsWith('隐藏');
+        try {
+            const res = await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({[key]: !current})
+            });
+            const data = await res.json();
+            if (data.success) fetchStatus();
+        } catch (e) { console.error('切换 ROI 显示失败:', e); }
     }
     async function toggleRecording() {
         const newEnabled = !lastRecordEnabled;
@@ -823,6 +867,8 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
             vision_vote_frames=config.get("vision.vote_frames", 5),
             vision_vote_threshold=config.get("vision.vote_threshold", 4),
             vision_debounce=config.get("vision.debounce_seconds", 2.0),
+            vision_show_customer_roi=config.get("vision.show_customer_roi", True),
+            vision_show_bowl_rois=config.get("vision.show_bowl_rois", True),
             audio_volume=config.get("audio.volume", 80),
             audio_voice=config.get("audio.voice", "zh-CN-XiaoxiaoNeural"),
             audio_rate=config.get("audio.rate", "-15%"),
@@ -913,6 +959,8 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
             data = {k: v for k, v in app_state.items() if not k.startswith("_")}
             data["detections"] = copy.deepcopy(data.get("detections", []))
             data["bowl_simulated"] = app_instance.simulate_bowl_override is not None if app_instance else False
+            data["show_customer_roi"] = config.get("vision.show_customer_roi", True)
+            data["show_bowl_rois"] = config.get("vision.show_bowl_rois", True)
         return jsonify(data)
 
     @app.route("/api/recording", methods=["POST"])
@@ -1007,6 +1055,11 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
                 vis = data["vision"]
                 for k, v in vis.items():
                     config.set(f"vision.{k}", v)
+            # 兼容旧版扁平格式
+            if "show_customer_roi" in data:
+                config.set("vision.show_customer_roi", data["show_customer_roi"])
+            if "show_bowl_rois" in data:
+                config.set("vision.show_bowl_rois", data["show_bowl_rois"])
             if "audio" in data and isinstance(data["audio"], dict):
                 aud = data["audio"]
                 for k, v in aud.items():

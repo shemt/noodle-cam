@@ -1,5 +1,5 @@
 {
-  "device_name": "NoodleCam-01",
+  "device_name": "NoodleCam-01面馆",
   "camera": {
     "index": 0,
     "width": 1280,
@@ -37,7 +37,9 @@
     "vote_frames": 5,
     "vote_threshold": 4,
     "debounce_seconds": 2,
-    "inference_interval": 1
+    "inference_interval": 1,
+    "show_customer_roi": true,
+    "show_bowl_rois": true
   },
   "audio": {
     "volume": 80,

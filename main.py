@@ -151,24 +151,26 @@ class NoodleCamApp:
             draw.text((x1 + 2, y1 - th - 2), label, fill=(0, 0, 0), font=font)
 
         # 画客户检测区 ROI
-        roi = self.config.get("vision.customer_roi", {})
-        if roi:
-            rx1, ry1, rx2, ry2 = roi.get("x1", 0), roi.get("y1", 0), roi.get("x2", 0), roi.get("y2", 0)
-            if rx2 > rx1 and ry2 > ry1:
-                overlay = frame.copy()
-                cv2.rectangle(overlay, (rx1, ry1), (rx2, ry2), (0, 200, 0), 2)
-                cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
-                draw.text((rx1 + 4, ry1 + 2), "客户检测区", fill=(0, 200, 0), font=font)
+        if self.config.get("vision.show_customer_roi", True):
+            roi = self.config.get("vision.customer_roi", {})
+            if roi:
+                rx1, ry1, rx2, ry2 = roi.get("x1", 0), roi.get("y1", 0), roi.get("x2", 0), roi.get("y2", 0)
+                if rx2 > rx1 and ry2 > ry1:
+                    overlay = frame.copy()
+                    cv2.rectangle(overlay, (rx1, ry1), (rx2, ry2), (0, 200, 0), 2)
+                    cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+                    draw.text((rx1 + 4, ry1 + 2), "客户检测区", fill=(0, 200, 0), font=font)
 
         # 画碗位检测区 ROI
-        for r in self.config.get("vision.bowl_rois", []):
-            bx1, by1, bx2, by2 = r.get("x1", 0), r.get("y1", 0), r.get("x2", 0), r.get("y2", 0)
-            rid = r.get("id", "?")
-            if bx2 > bx1 and by2 > by1:
-                overlay = frame.copy()
-                cv2.rectangle(overlay, (bx1, by1), (bx2, by2), (255, 165, 0), 2)
-                cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
-                draw.text((bx1 + 4, by1 + 2), f"碗位#{rid}", fill=(255, 165, 0), font=font)
+        if self.config.get("vision.show_bowl_rois", True):
+            for r in self.config.get("vision.bowl_rois", []):
+                bx1, by1, bx2, by2 = r.get("x1", 0), r.get("y1", 0), r.get("x2", 0), r.get("y2", 0)
+                rid = r.get("id", "?")
+                if bx2 > bx1 and by2 > by1:
+                    overlay = frame.copy()
+                    cv2.rectangle(overlay, (bx1, by1), (bx2, by2), (255, 165, 0), 2)
+                    cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+                    draw.text((bx1 + 4, by1 + 2), f"碗位#{rid}", fill=(255, 165, 0), font=font)
 
         # 画设备名称和时间标记（右上角，暗灰底色）
         from datetime import datetime
