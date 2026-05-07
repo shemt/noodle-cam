@@ -208,6 +208,17 @@ class NoodleCamApp:
         frame = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
         return frame
 
+    def _check_config_reload(self):
+        """检查配置文件是否被外部修改，如有则重新加载"""
+        try:
+            mtime = self.config.path.stat().st_mtime
+            if getattr(self, "_config_mtime", 0) < mtime:
+                self._config_mtime = mtime
+                self.config = Config(str(self.config.path))
+                logger.debug("配置已热重载")
+        except (OSError, AttributeError):
+            pass
+
     def _get_latest_jpeg(self) -> bytes:
         with self._jpeg_lock:
             return self._latest_jpeg
@@ -302,6 +313,10 @@ class NoodleCamApp:
                         self.recorder.stop()
 
                 frame_count += 1
+                # 每 30 帧检查一次配置文件是否有外部修改
+                if frame_count % 30 == 0:
+                    self._check_config_reload()
+
                 now = time.time()
                 if now - last_fps_time >= 1.0:
                     fps = frame_count / (now - last_fps_time)
