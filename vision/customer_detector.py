@@ -43,6 +43,10 @@ class CustomerDetector:
                 return True
         return False
 
+    def set_roi(self, roi: dict):
+        """动态更新客户检测区 ROI"""
+        self.roi = roi
+
     def _in_roi(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         cx = (x1 + x2) / 2
         cy = (y1 + y2) / 2

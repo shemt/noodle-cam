@@ -134,23 +134,16 @@ class NoodleCamApp:
         draw = ImageDraw.Draw(pil_img)
 
         colors = {"person": (0, 255, 0), "bowl": (0, 165, 255)}
-        colors_pil = {"person": (0, 255, 0), "bowl": (255, 165, 0)}
 
-        # 画检测框 (OpenCV) + 标签 (PIL)
+        # 1. OpenCV 绘制检测框
         for det in detections:
             cls = det.get("class", "obj")
             x1, y1, x2, y2 = det["bbox"]
             conf = det.get("conf", 0)
             color = colors.get(cls, (255, 255, 255))
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            label = f"{cls} {conf:.2f}"
-            # PIL 文字背景
-            bbox = draw.textbbox((0, 0), label, font=font)
-            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            draw.rectangle([x1, y1 - th - 4, x1 + tw + 4, y1], fill=colors_pil.get(cls, (255, 255, 255)))
-            draw.text((x1 + 2, y1 - th - 2), label, fill=(0, 0, 0), font=font)
 
-        # 画客户检测区 ROI
+        # 2. OpenCV 绘制客户检测区 ROI
         if self.config.get("vision.show_customer_roi", True):
             roi = self.config.get("vision.customer_roi", {})
             if roi:
@@ -159,9 +152,8 @@ class NoodleCamApp:
                     overlay = frame.copy()
                     cv2.rectangle(overlay, (rx1, ry1), (rx2, ry2), (0, 200, 0), 2)
                     cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
-                    draw.text((rx1 + 4, ry1 + 2), "客户检测区", fill=(0, 200, 0), font=font)
 
-        # 画碗位检测区 ROI
+        # 3. OpenCV 绘制碗位检测区 ROI
         if self.config.get("vision.show_bowl_rois", True):
             for r in self.config.get("vision.bowl_rois", []):
                 bx1, by1, bx2, by2 = r.get("x1", 0), r.get("y1", 0), r.get("x2", 0), r.get("y2", 0)
@@ -170,14 +162,46 @@ class NoodleCamApp:
                     overlay = frame.copy()
                     cv2.rectangle(overlay, (bx1, by1), (bx2, by2), (255, 165, 0), 2)
                     cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+
+        # 4. 所有 OpenCV 绘制完成后，再转为 PIL 图像绘制文字
+        pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(pil_img)
+        colors_pil = {"person": (0, 255, 0), "bowl": (255, 165, 0)}
+
+        # 5. PIL 绘制检测框标签
+        for det in detections:
+            cls = det.get("class", "obj")
+            x1, y1, x2, y2 = det["bbox"]
+            conf = det.get("conf", 0)
+            label = f"{cls} {conf:.2f}"
+            bbox = draw.textbbox((0, 0), label, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            draw.rectangle([x1, y1 - th - 4, x1 + tw + 4, y1], fill=colors_pil.get(cls, (255, 255, 255)))
+            draw.text((x1 + 2, y1 - th - 2), label, fill=(0, 0, 0), font=font)
+
+        # 6. PIL 绘制客户检测区 ROI 文字
+        if self.config.get("vision.show_customer_roi", True):
+            roi = self.config.get("vision.customer_roi", {})
+            if roi:
+                rx1, ry1 = roi.get("x1", 0), roi.get("y1", 0)
+                rx2, ry2 = roi.get("x2", 0), roi.get("y2", 0)
+                if rx2 > rx1 and ry2 > ry1:
+                    draw.text((rx1 + 4, ry1 + 2), "客户检测区", fill=(0, 200, 0), font=font)
+
+        # 7. PIL 绘制碗位检测区 ROI 文字
+        if self.config.get("vision.show_bowl_rois", True):
+            for r in self.config.get("vision.bowl_rois", []):
+                bx1, by1 = r.get("x1", 0), r.get("y1", 0)
+                bx2, by2 = r.get("x2", 0), r.get("y2", 0)
+                rid = r.get("id", "?")
+                if bx2 > bx1 and by2 > by1:
                     draw.text((bx1 + 4, by1 + 2), f"碗位#{rid}", fill=(255, 165, 0), font=font)
 
-        # 画设备名称和时间标记（右上角，暗灰底色）
+        # 8. 画设备名称和时间标记（右上角，暗灰底色）
         from datetime import datetime
         device_name = self.config.get("device_name", "NoodleCam")
         time_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 计算文字尺寸
         name_bbox = draw.textbbox((0, 0), device_name, font=font)
         name_w, name_h = name_bbox[2] - name_bbox[0], name_bbox[3] - name_bbox[1]
         time_bbox = draw.textbbox((0, 0), time_text, font=font)
@@ -190,14 +214,11 @@ class NoodleCamApp:
         bg_x2 = w - 4
         bg_y2 = bg_y1 + name_h + time_h + pad * 3
 
-        # 暗灰底色背景
         draw.rectangle([bg_x1, bg_y1, bg_x2, bg_y2], fill=(64, 64, 64))
-        # 设备名称
         draw.text((w - max_w - 10, bg_y1 + pad), device_name, fill=(255, 255, 255), font=font)
-        # 时间
         draw.text((w - max_w - 10, bg_y1 + pad * 2 + name_h), time_text, fill=(200, 200, 200), font=font)
 
-        # 画碗状态信息
+        # 9. 画碗状态信息
         any_bowl = self._any_bowl_present()
         state_text = f"碗状态: {'有碗' if any_bowl else '无碗'}"
         if self.simulate_bowl_override is not None:
@@ -215,6 +236,13 @@ class NoodleCamApp:
             if getattr(self, "_config_mtime", 0) < mtime:
                 self._config_mtime = mtime
                 self.config = Config(str(self.config.path))
+                # 同步更新检测器的 ROI，确保检测逻辑与画面显示一致
+                self.customer_detector.set_roi(
+                    self.config.get("vision.customer_roi", {})
+                )
+                self.bowl_detector.update_rois(
+                    self.config.get("vision.bowl_rois", [])
+                )
                 logger.debug("配置已热重载")
         except (OSError, AttributeError):
             pass
@@ -361,8 +389,8 @@ class NoodleCamApp:
 
 def main():
     app = NoodleCamApp()
-    signal.signal(signal.SIGINT, lambda s, f: app.shutdown())
-    signal.signal(signal.SIGTERM, lambda s, f: app.shutdown())
+    signal.signal(signal.SIGINT, lambda _s, _f: app.shutdown())
+    signal.signal(signal.SIGTERM, lambda _s, _f: app.shutdown())
     app.run()
 
 

@@ -68,6 +68,27 @@ class BowlDetector:
                     )
         return events
 
+    def update_rois(self, rois: List[Dict]):
+        """动态更新碗位 ROI 列表，保留已有碗位的历史数据，清理已删除碗位"""
+        new_ids = {r["id"] for r in rois}
+        old_ids = set(self.confirmed_states.keys())
+
+        # 移除已不存在的碗位
+        for rid in old_ids - new_ids:
+            self.histories.pop(rid, None)
+            self.confirmed_states.pop(rid, None)
+            self.last_change_time.pop(rid, None)
+
+        # 新增碗位
+        for r in rois:
+            rid = r["id"]
+            if rid not in self.histories:
+                self.histories[rid] = deque(maxlen=self.vote_frames)
+                self.confirmed_states[rid] = False
+                self.last_change_time[rid] = 0
+
+        self.rois = rois
+
     def get_states(self) -> Dict[int, bool]:
         """返回各碗位当前确认状态的副本"""
         return self.confirmed_states.copy()

@@ -13,33 +13,54 @@
     "model_path": "models/yolov5s.onnx",
     "confidence_threshold": 0.5,
     "customer_roi": {
-      "x1": 48,
-      "y1": 57,
-      "x2": 1000,
-      "y2": 703
+      "x1": 197,
+      "y1": 186,
+      "x2": 794,
+      "y2": 606
     },
     "bowl_rois": [
       {
-        "id": 1,
-        "x1": 136,
-        "y1": 79,
-        "x2": 216,
-        "y2": 150
+        "id": 2,
+        "x1": 309,
+        "x2": 419,
+        "y1": 132,
+        "y2": 212
+      },
+      {
+        "id": 3,
+        "x1": 464,
+        "x2": 567,
+        "y1": 135,
+        "y2": 267
       },
       {
         "id": 4,
-        "x1": 330,
-        "y1": 208,
-        "x2": 448,
-        "y2": 290
+        "x1": 336,
+        "x2": 463,
+        "y1": 320,
+        "y2": 437
+      },
+      {
+        "id": 5,
+        "x1": 150,
+        "x2": 274,
+        "y1": 297,
+        "y2": 402
+      },
+      {
+        "id": 1,
+        "x1": 107,
+        "y1": 170,
+        "x2": 240,
+        "y2": 267
       }
     ],
     "vote_frames": 5,
     "vote_threshold": 4,
     "debounce_seconds": 2,
     "inference_interval": 1,
-    "show_customer_roi": true,
-    "show_bowl_rois": true
+    "show_customer_roi": false,
+    "show_bowl_rois": false
   },
   "audio": {
     "volume": 80,
@@ -48,8 +69,8 @@
     "rate": "-15%",
     "messages": {
       "customer_approach": "请拿碗放在碗托上",
-      "bowl_placed": "已检测到放碗",
       "meal_ready": "您的餐已准备好，请取餐",
+      "bowl_placed": "已检测到放碗",
       "bowl_removed": "碗已取走，请慢用"
     }
   },

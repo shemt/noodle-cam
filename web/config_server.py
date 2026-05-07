@@ -422,6 +422,7 @@ MONITOR_PAGE = """
     let isDrawing = false;
     let startX = 0, startY = 0;
     let currentRect = null;
+    let previewRect = null;  // 拖拽完成后的预览矩形，保存后清除
     let customerRoi = null;
     let bowlRois = [];
     let scaleX = 1, scaleY = 1;
@@ -446,16 +447,18 @@ MONITOR_PAGE = """
     }
     function redraw() {
         clearCanvas();
-        if (customerRoi) drawRoi(customerRoi, 'rgb(0, 200, 0)', '客户区');
-        bowlRois.forEach(r => drawRoi(r, 'rgb(255, 165, 0)', '碗位#' + r.id));
+        // 已保存的 ROI 由后端视频流叠加绘制，前端 canvas 只显示正在拖拽或待保存的临时框
         if (currentRect) drawRoi(currentRect, 'rgb(0, 150, 255)', '框选中');
+        if (previewRect) drawRoi(previewRect, 'rgb(255, 200, 0)', '待保存');
         updateRoiList();
     }
     function setMode(m) {
         mode = m;
+        previewRect = null;
         document.getElementById('btnCustomer').classList.toggle('mode-active', m === 'customer');
         document.getElementById('btnBowl').classList.toggle('mode-active', m === 'bowl');
         document.getElementById('modeLabel').textContent = m === 'customer' ? '客户检测区' : '碗位检测区';
+        redraw();
     }
     function getMousePos(e) {
         updateScale();
@@ -484,19 +487,22 @@ MONITOR_PAGE = """
         if (rect.x2 - rect.x1 < 10 || rect.y2 - rect.y1 < 10) { redraw(); return; }
         if (mode === 'customer') {
             customerRoi = rect;
+            previewRect = { ...rect, label: '客户区' };
         } else {
             const id = bowlRois.length + 1;
             const name = prompt('请输入碗位编号（如 1, 2, 3）:', id);
             if (name === null) { redraw(); return; }
-            bowlRois.push({id: parseInt(name) || id, x1: rect.x1, y1: rect.y1, x2: rect.x2, y2: rect.y2});
+            const bowl = {id: parseInt(name) || id, x1: rect.x1, y1: rect.y1, x2: rect.x2, y2: rect.y2};
+            bowlRois.push(bowl);
+            previewRect = { ...rect, label: '碗位#' + bowl.id };
         }
         redraw();
     });
     canvas.addEventListener('mouseleave', () => { if (isDrawing) { isDrawing = false; currentRect = null; redraw(); } });
-    function removeBowlRoi(idx) { bowlRois.splice(idx, 1); redraw(); }
+    function removeBowlRoi(idx) { bowlRois.splice(idx, 1); previewRect = null; redraw(); }
     function clearAll() {
         if (!confirm('确定清空所有 ROI 设定吗？')) return;
-        customerRoi = null; bowlRois = []; redraw();
+        customerRoi = null; bowlRois = []; previewRect = null; redraw();
     }
     function updateRoiList() {
         const el = document.getElementById('roiList');
@@ -523,6 +529,10 @@ MONITOR_PAGE = """
             const msg = document.getElementById('roiMsg');
             msg.innerText = data.message;
             msg.className = data.success ? 'success' : 'error';
+            if (data.success) {
+                previewRect = null;
+                redraw();
+            }
         } catch (e) {
             document.getElementById('roiMsg').innerText = '保存失败: ' + e;
         }
