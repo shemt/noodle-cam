@@ -12,6 +12,11 @@ except ImportError:
     RKNNLite = None
 
 try:
+    import onnxruntime as ort
+except ImportError:
+    ort = None
+
+try:
     import cv2
 except ImportError:
     cv2 = None
@@ -41,7 +46,7 @@ STRIDES = [8, 16, 32]
 
 
 class YOLODetector:
-    """YOLO 目标检测封装，优先 RKNN NPU，fallback 到 ONNX/OpenCV DNN。
+    """YOLO 目标检测封装，优先级: RKNN NPU > ONNX Runtime > OpenCV DNN。
     支持异步推理：主线程提交帧，后台线程执行推理，不阻塞视频流。
     """
 
@@ -52,6 +57,7 @@ class YOLODetector:
         self.inference_interval = max(1, inference_interval)  # 每 N 帧推理一次
         self._rknn = None
         self._net = None
+        self._ort_session = None
         self._load_model()
 
         # 异步推理相关
@@ -146,15 +152,33 @@ class YOLODetector:
             else:
                 logger.error("RKNN load_rknn 失败")
                 self._rknn = None
-        elif suffix in (".onnx", ".pb", ".weights") and cv2 is not None:
-            self._net = cv2.dnn.readNet(str(self.model_path))
-            logger.info(f"OpenCV DNN 模型加载成功: {self.model_path}")
+        elif suffix in (".onnx", ".pb", ".weights"):
+            # 优先使用 ONNX Runtime，兼容性更好（支持 FP16、Split 等算子）
+            if suffix == ".onnx" and ort is not None:
+                try:
+                    self._ort_session = ort.InferenceSession(
+                        str(self.model_path),
+                        providers=["CPUExecutionProvider"],
+                    )
+                    logger.info(f"ONNX Runtime 模型加载成功: {self.model_path}")
+                    return
+                except Exception as e:
+                    logger.warning(f"ONNX Runtime 加载失败: {e}，回退到 OpenCV DNN")
+            # 回退到 OpenCV DNN
+            if cv2 is not None:
+                try:
+                    self._net = cv2.dnn.readNet(str(self.model_path))
+                    logger.info(f"OpenCV DNN 模型加载成功: {self.model_path}")
+                except Exception as e:
+                    logger.warning(f"OpenCV DNN 模型加载失败: {e}，检测将返回空结果")
         else:
             logger.warning(f"不支持的模型格式或缺少运行时: {suffix}")
 
     def detect(self, frame: np.ndarray) -> List[Dict]:
         if self._rknn is not None:
             return self._detect_rknn(frame)
+        if self._ort_session is not None:
+            return self._detect_onnxruntime(frame)
         if self._net is not None:
             return self._detect_opencv(frame)
         return []
@@ -174,6 +198,18 @@ class YOLODetector:
             return []
 
         return self._parse_yolov5_outputs(outputs, frame.shape)
+
+    def _detect_onnxruntime(self, frame: np.ndarray) -> List[Dict]:
+        """ONNX Runtime 推理：预处理 BGR→RGB→归一化→推理→解析输出"""
+        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (self.input_size, self.input_size))
+        img = img.astype(np.float32) / 255.0
+        img = np.transpose(img, (2, 0, 1))       # HWC -> CHW
+        img = np.expand_dims(img, axis=0)          # add batch
+
+        input_name = self._ort_session.get_inputs()[0].name
+        outputs = self._ort_session.run(None, {input_name: img})
+        return self._parse_yolo_outputs(outputs, frame.shape)
 
     def _detect_opencv(self, frame: np.ndarray) -> List[Dict]:
         blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (self.input_size, self.input_size), swapRB=True, crop=False)
@@ -353,3 +389,5 @@ class YOLODetector:
         if self._rknn is not None:
             self._rknn.release()
             self._rknn = None
+        self._ort_session = None
+        self._net = None

@@ -6,7 +6,12 @@ logger = logging.getLogger(__name__)
 
 
 class RTSPStreamer:
-    """GStreamer RTSP 服务器，通过 appsrc 从主程序接收帧，局域网可直接拉流观看"""
+    """GStreamer RTSP 服务器，通过 appsrc 从主程序接收 BGR numpy 帧（含检测叠加层），
+    编码为 H.264 后通过 RTSP 发布，局域网可直接拉流观看。
+
+    数据流: main.py vis_frame (BGR numpy, H×W×3) → appsrc → videoconvert (BGR→I420)
+            → x264enc → rtph264pay → RTSP 客户端
+    """
 
     def __init__(
         self,
@@ -49,7 +54,7 @@ class RTSPStreamer:
         self._server.set_service(str(self.port))
 
         factory = GstRtspServer.RTSPMediaFactory.new()
-        # 使用 appsrc 从主程序接收 BGR 帧
+        # 使用 appsrc 从主程序接收 BGR 帧（OpenCV 默认格式）
         pipeline = (
             "appsrc name=mysrc is-live=true format=time do-timestamp=true ! "
             "videoconvert ! video/x-raw,format=I420 ! "
@@ -90,6 +95,8 @@ class RTSPStreamer:
         logger.info(f"appsrc 已配置: {self.width}x{self.height}@{self.fps}fps BGR")
 
     def push_frame(self, frame):
+        """推送一帧到 RTSP 流。frame 为 BGR 格式 numpy 数组 (H×W×3)，
+        由主循环在 _draw_overlay 之后调用。"""
         if self._appsrc is None:
             return
         try:

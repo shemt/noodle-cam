@@ -37,6 +37,10 @@ class NoodleCamApp:
             contrast=self.config.get("camera.contrast", 1.0),
             saturation=self.config.get("camera.saturation", 1.0),
             gamma=self.config.get("camera.gamma", 1.0),
+            sensor_exposure=self.config.get("camera.sensor_exposure"),
+            sensor_gain=self.config.get("camera.sensor_gain"),
+            auto_wb=self.config.get("camera.auto_wb", False),
+            wb_strength=self.config.get("camera.wb_strength", 0.5),
         )
         self.detector = YOLODetector(
             self.config.get("vision.model_path", "models/yolov5s.rknn"),

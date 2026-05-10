@@ -82,6 +82,17 @@ CONFIG_PAGE = """
             <input type="number" id="cam_saturation" step="0.1" value="{{ camera_saturation }}">
             <label>Gamma</label>
             <input type="number" id="cam_gamma" step="0.05" value="{{ camera_gamma }}">
+            <label>Sensor 曝光 <span class="hint">(手动曝光行数, null=自动)</span></label>
+            <input type="number" id="cam_sensor_exposure" placeholder="null" value="{{ camera_sensor_exposure }}">
+            <label>Sensor 增益 <span class="hint">(模拟增益, null=自动)</span></label>
+            <input type="number" id="cam_sensor_gain" placeholder="null" value="{{ camera_sensor_gain }}">
+            <label>自动白平衡</label>
+            <select id="cam_auto_wb">
+                <option value="false" {% if not camera_auto_wb %}selected{% endif %}>关闭</option>
+                <option value="true" {% if camera_auto_wb %}selected{% endif %}>开启</option>
+            </select>
+            <label>白平衡强度</label>
+            <input type="number" id="cam_wb_strength" step="0.05" min="0" max="1" value="{{ camera_wb_strength }}">
 
             <h3>视觉检测</h3>
             <label>模型路径 <span class="hint">(需重启生效)</span></label>
@@ -191,6 +202,10 @@ CONFIG_PAGE = """
         if (type === 'bool') return el.value === 'true';
         if (type === 'int') return parseInt(el.value);
         if (type === 'float') return parseFloat(el.value);
+        if (type === 'int_null') {
+            if (!el.value || el.value.trim() === '') return null;
+            return parseInt(el.value);
+        }
         return el.value;
     }
     function buildPayload() {
@@ -204,6 +219,10 @@ CONFIG_PAGE = """
                 contrast: getValue('cam_contrast', 'float'),
                 saturation: getValue('cam_saturation', 'float'),
                 gamma: getValue('cam_gamma', 'float'),
+                sensor_exposure: getValue('cam_sensor_exposure', 'int_null'),
+                sensor_gain: getValue('cam_sensor_gain', 'int_null'),
+                auto_wb: getValue('cam_auto_wb', 'bool'),
+                wb_strength: getValue('cam_wb_strength', 'float'),
             },
             vision: {
                 model_path: getValue('vision_model_path'),
@@ -871,6 +890,10 @@ def create_app(config_path: str = "config.json", app_state=None, recorder=None, 
             camera_contrast=config.get("camera.contrast", 1.2),
             camera_saturation=config.get("camera.saturation", 1.2),
             camera_gamma=config.get("camera.gamma", 0.85),
+            camera_sensor_exposure="" if config.get("camera.sensor_exposure") is None else config.get("camera.sensor_exposure"),
+            camera_sensor_gain="" if config.get("camera.sensor_gain") is None else config.get("camera.sensor_gain"),
+            camera_auto_wb=config.get("camera.auto_wb", False),
+            camera_wb_strength=config.get("camera.wb_strength", 0.5),
             vision_model_path=config.get("vision.model_path", "models/yolov5s.onnx"),
             vision_confidence=config.get("vision.confidence_threshold", 0.5),
             vision_inference_interval=config.get("vision.inference_interval", 1),

@@ -4,13 +4,17 @@
     "index": 0,
     "width": 1280,
     "height": 720,
-    "brightness": 30,
-    "contrast": 1.2,
-    "saturation": 1.2,
-    "gamma": 0.85
+    "brightness": 0.0,
+    "contrast": 1.0,
+    "saturation": 1.0,
+    "gamma": 1.0,
+    "sensor_exposure": null,
+    "sensor_gain": null,
+    "auto_wb": false,
+    "wb_strength": 0.5
   },
   "vision": {
-    "model_path": "models/yolov5s.onnx",
+    "model_path": "models/yolov5s_fp32.onnx",
     "confidence_threshold": 0.5,
     "customer_roi": {
       "x1": 197,
